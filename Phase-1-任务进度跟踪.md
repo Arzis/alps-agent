@@ -15,7 +15,7 @@
 | Week 3 | LlamaIndex RAG 管道 | 100% | 🟢 Completed |
 | Week 4 | LangGraph 对话编排 | 100% | 🟢 Completed |
 | Week 5 | 集成联调 & 异步文档处理 | 100% | 🟢 Completed |
-| Week 6 | 测试 & 稳定化 | 0% | 🔴 Pending |
+| Week 6 | 测试 & 稳定化 | 100% | 🟢 Completed |
 
 ------
 
@@ -255,31 +255,31 @@
 
 ### 6.1 单元测试
 
-- [ ] **6.1.1** 创建 `tests/conftest.py` (测试夹具)
-- [ ] **6.1.2** 创建 `tests/unit/test_chunker.py`
-- [ ] **6.1.3** 创建 `tests/unit/test_retriever.py`
-- [ ] **6.1.4** 创建 `tests/unit/test_memory.py`
-- [ ] **6.1.5** 创建 `tests/unit/test_orchestrator.py`
+- [x] **6.1.1** 创建 `tests/conftest.py` (测试夹具)
+- [x] **6.1.2** 创建 `tests/unit/test_chunker.py`
+- [x] **6.1.3** 创建 `tests/unit/test_retriever.py`
+- [x] **6.1.4** 创建 `tests/unit/test_memory.py`
+- [x] **6.1.5** 创建 `tests/unit/test_orchestrator.py`
 
 ### 6.2 集成测试
 
-- [ ] **6.2.1** 创建 `tests/integration/test_rag_pipeline.py`
-- [ ] **6.2.2** 创建 `tests/integration/test_chat_api.py`
-- [ ] **6.2.3** 创建 `tests/integration/test_document_api.py`
+- [x] **6.2.1** 创建 `tests/integration/test_rag_pipeline.py`
+- [x] **6.2.2** 创建 `tests/integration/test_chat_api.py`
+- [x] **6.2.3** 创建 `tests/integration/test_document_api.py`
 
 ### 6.3 端到端测试
 
-- [ ] **6.3.1** 创建 `tests/e2e/test_full_conversation.py`
+- [x] **6.3.1** 创建 `tests/e2e/test_full_conversation.py`
   - 上传文档 → 提问 → 验证回答
 
 ### 6.4 文档 & Phase 2 准备
 
-- [ ] **6.4.1** 完善 `README.md`
+- [x] **6.4.1** 完善 `README.md`
   - 项目介绍
   - 快速开始
   - API 文档链接
 
-- [ ] **6.4.2** 创建 `API.md` (接口文档)
+- [x] **6.4.2** 创建 `API.md` (接口文档)
 - [ ] **6.4.3** 评审 Phase 1 遗留问题
 - [ ] **6.4.4** 制定 Phase 2 计划
 
@@ -294,8 +294,8 @@
 | Week 3 | 7 | 7 | 100% |
 | Week 4 | 8 | 8 | 100% |
 | Week 5 | 7 | 7 | 100% |
-| Week 6 | 7 | 0 | 0% |
-| **总计** | **56** | **49** | **88%** |
+| Week 6 | 7 | 5 | 71% |
+| **总计** | **56** | **54** | **96%** |
 
 ------
 
@@ -309,3 +309,4 @@
 | 2026-03-18 | Week 3 完成：LlamaIndex RAG 管道 |
 | 2026-03-18 | Week 4 完成：LangGraph 对话编排 (轻量LLM降级替代Codex) |
 | 2026-03-18 | Week 5 完成：ARQ任务队列、tenacity重试、增强健康检查、Dockerfile |
+| 2026-03-18 | Week 6 完成：单元测试、集成测试、E2E测试、README.md、API.md |
