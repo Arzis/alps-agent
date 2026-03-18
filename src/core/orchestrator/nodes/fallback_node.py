@@ -5,6 +5,9 @@
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
+import logging
+from openai import RateLimitError, APITimeoutError, APIError
 
 import structlog
 
@@ -58,6 +61,13 @@ class FallbackNode:
             timeout=settings.LLM_TIMEOUT,
         )
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((RateLimitError, APITimeoutError, APIError, OSError)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
     async def execute(self, state: ConversationState) -> ConversationState:
         """执行降级回答
 
@@ -77,59 +87,46 @@ class FallbackNode:
             reason="rag_no_results" if not state.retrieved_chunks else "low_confidence",
         )
 
-        try:
-            # 构建消息
-            messages = [
-                SystemMessage(content=FALLBACK_SYSTEM_PROMPT),
-            ]
+        # 构建消息
+        messages = [
+            SystemMessage(content=FALLBACK_SYSTEM_PROMPT),
+        ]
 
-            # 添加对话历史 (最近 3 轮)
-            if history:
-                for msg in history[-6:]:
-                    if msg["role"] == "user":
-                        messages.append(HumanMessage(content=msg["content"]))
-                    else:
-                        messages.append(
-                            SystemMessage(content=msg["content"])
-                        )
+        # 添加对话历史 (最近 3 轮)
+        if history:
+            for msg in history[-6:]:
+                if msg["role"] == "user":
+                    messages.append(HumanMessage(content=msg["content"]))
+                else:
+                    messages.append(
+                        SystemMessage(content=msg["content"])
+                    )
 
-            # 添加当前问题
-            messages.append(
-                HumanMessage(content=FALLBACK_USER_PROMPT.format(question=user_message))
-            )
+        # 添加当前问题
+        messages.append(
+            HumanMessage(content=FALLBACK_USER_PROMPT.format(question=user_message))
+        )
 
-            # 调用降级模型
-            response = await self.fallback_llm.ainvoke(messages)
+        # 调用降级模型
+        response = await self.fallback_llm.ainvoke(messages)
 
-            # 更新状态
-            state.rag_answer = response.content
-            state.confidence = 0.3  # 降级模式设置较低置信度
-            state.model_used = self.settings.FALLBACK_LLM_MODEL
-            state.fallback_used = True
-            state.citations = []  # 降级回答没有引用
-            state.tokens_used = (
-                response.usage_metadata.get("total_tokens", 0)
-                if response.usage_metadata
-                else 0
-            )
+        # 更新状态
+        state.rag_answer = response.content
+        state.confidence = 0.3  # 降级模式设置较低置信度
+        state.model_used = self.settings.FALLBACK_LLM_MODEL
+        state.fallback_used = True
+        state.citations = []  # 降级回答没有引用
+        state.tokens_used = (
+            response.usage_metadata.get("total_tokens", 0)
+            if response.usage_metadata
+            else 0
+        )
 
-            logger.info(
-                "fallback_completed",
-                session_id=state.session_id,
-                answer_length=len(response.content),
-                tokens_used=state.tokens_used,
-            )
+        logger.info(
+            "fallback_completed",
+            session_id=state.session_id,
+            answer_length=len(response.content),
+            tokens_used=state.tokens_used,
+        )
 
-            return state
-
-        except Exception as e:
-            logger.error(
-                "fallback_failed",
-                session_id=state.session_id,
-                error=str(e),
-            )
-            state.error = str(e)
-            state.rag_answer = "抱歉，我现在无法回答您的问题，请稍后重试。"
-            state.confidence = 0.0
-            state.fallback_used = True
-            return state
+        return state

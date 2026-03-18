@@ -14,7 +14,7 @@
 | Week 2 | FastAPI 服务层 & 基础对话 | 100% | 🟢 Completed |
 | Week 3 | LlamaIndex RAG 管道 | 100% | 🟢 Completed |
 | Week 4 | LangGraph 对话编排 | 100% | 🟢 Completed |
-| Week 5 | 集成联调 & 异步文档处理 | 0% | 🔴 Pending |
+| Week 5 | 集成联调 & 异步文档处理 | 100% | 🟢 Completed |
 | Week 6 | 测试 & 稳定化 | 0% | 🔴 Pending |
 
 ------
@@ -225,28 +225,28 @@
 
 ### 5.1 全链路串联
 
-- [ ] **5.1.1** 串联 Chat API → Orchestrator → RAG → 响应
-- [ ] **5.1.2** 串联 Document API → Ingestion Pipeline → Milvus
-- [ ] **5.1.3** 联调 SSE 流式输出
+- [x] **5.1.1** 串联 Chat API → Orchestrator → RAG → 响应
+- [x] **5.1.2** 串联 Document API → Ingestion Pipeline → Milvus
+- [x] **5.1.3** 联调 SSE 流式输出
 
 ### 5.2 异步文档处理队列 (ARQ)
 
-- [ ] **5.2.1** 创建 `src/infra/queue/task_queue.py`
+- [x] **5.2.1** 创建 `src/infra/queue/task_queue.py`
   - ARQ WorkerSettings
   - 文档处理任务
 
-- [ ] **5.2.2** 在 Document API 中集成后台任务
+- [x] **5.2.2** 在 Document API 中集成后台任务
   - `background_tasks.add_task()`
 
 ### 5.3 错误处理 & 重试机制
 
-- [ ] **5.3.1** 为 LLM 调用添加 tenacity 重试
-- [ ] **5.3.2** 为数据库操作添加错误处理
-- [ ] **5.3.3** 实现优雅降级
+- [x] **5.3.1** 为 LLM 调用添加 tenacity 重试
+- [x] **5.3.2** 为数据库操作添加错误处理
+- [x] **5.3.3** 实现优雅降级
 
 ### 5.4 基础健康检查 & 指标
 
-- [ ] **5.4.1** 完善 `/health/detail` 端点
+- [x] **5.4.1** 完善 `/health/detail` 端点
 - [ ] **5.4.2** 添加基础 Prometheus 指标 (可选)
 
 ------
@@ -293,9 +293,9 @@
 | Week 2 | 17 | 17 | 100% |
 | Week 3 | 7 | 7 | 100% |
 | Week 4 | 8 | 8 | 100% |
-| Week 5 | 7 | 0 | 0% |
+| Week 5 | 7 | 7 | 100% |
 | Week 6 | 7 | 0 | 0% |
-| **总计** | **56** | **42** | **75%** |
+| **总计** | **56** | **49** | **88%** |
 
 ------
 
@@ -308,3 +308,4 @@
 | 2026-03-18 | Week 2 完成：FastAPI 服务层 & 基础对话 |
 | 2026-03-18 | Week 3 完成：LlamaIndex RAG 管道 |
 | 2026-03-18 | Week 4 完成：LangGraph 对话编排 (轻量LLM降级替代Codex) |
+| 2026-03-18 | Week 5 完成：ARQ任务队列、tenacity重试、增强健康检查、Dockerfile |

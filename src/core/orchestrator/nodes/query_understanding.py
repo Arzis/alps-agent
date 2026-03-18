@@ -5,6 +5,9 @@
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
+import logging
+from openai import RateLimitError, APITimeoutError, APIError
 
 import structlog
 
@@ -103,6 +106,13 @@ class QueryUnderstandingNode:
 
         return state
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((RateLimitError, APITimeoutError, APIError, OSError)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
     async def _detect_intent(self, query: str) -> str:
         """识别用户意图
 
@@ -128,8 +138,15 @@ class QueryUnderstandingNode:
 
         except Exception as e:
             logger.error("intent_detection_failed", error=str(e))
-            return "knowledge"  # 默认按知识问答处理
+            raise
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((RateLimitError, APITimeoutError, APIError, OSError)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
     async def _rewrite_query(self, query: str) -> str:
         """改写用户查询
 
@@ -155,4 +172,4 @@ class QueryUnderstandingNode:
 
         except Exception as e:
             logger.error("query_rewrite_failed", error=str(e))
-            return query  # 降级使用原查询
+            raise

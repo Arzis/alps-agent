@@ -9,6 +9,9 @@ from typing import Any
 import structlog
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
+import logging
+from openai import RateLimitError, APITimeoutError, APIError
 
 from src.core.rag.retrieval.dense import RetrievedChunk
 from src.schemas.chat import CitationItem
@@ -76,6 +79,13 @@ class AnswerSynthesizer:
             timeout=settings.LLM_TIMEOUT,
         )
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((RateLimitError, APITimeoutError, APIError, OSError)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
     async def synthesize(
         self,
         query: str,
@@ -137,6 +147,13 @@ class AnswerSynthesizer:
             tokens_used=tokens_used,
         )
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((RateLimitError, APITimeoutError, APIError, OSError)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
     async def synthesize_with_codex(
         self,
         query: str,
