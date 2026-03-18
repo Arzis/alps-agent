@@ -12,8 +12,8 @@
 |------|------|------|------|
 | Week 1 | 项目基础设施搭建 | 100% | 🟢 Completed |
 | Week 2 | FastAPI 服务层 & 基础对话 | 100% | 🟢 Completed |
-| Week 3 | LlamaIndex RAG 管道 | 0% | 🔴 Pending |
-| Week 4 | LangGraph 对话编排 | 0% | 🔴 Pending |
+| Week 3 | LlamaIndex RAG 管道 | 100% | 🟢 Completed |
+| Week 4 | LangGraph 对话编排 | 100% | 🟢 Completed |
 | Week 5 | 集成联调 & 异步文档处理 | 0% | 🔴 Pending |
 | Week 6 | 测试 & 稳定化 | 0% | 🔴 Pending |
 
@@ -129,7 +129,7 @@
 
 ### 3.1 文档解析器
 
-- [ ] **3.1.1** 创建 `src/core/rag/ingestion/parser.py`
+- [x] **3.1.1** 创建 `src/core/rag/ingestion/parser.py`
   - PDF 解析 (pypdf)
   - Word 解析 (python-docx)
   - Markdown 解析
@@ -137,32 +137,32 @@
 
 ### 3.2 分块策略
 
-- [ ] **3.2.1** 创建 `src/core/rag/ingestion/chunker.py`
+- [x] **3.2.1** 创建 `src/core/rag/ingestion/chunker.py`
   - 递归字符分块 (RecursiveCharacterTextSplitter)
   - chunk_size / chunk_overlap 配置
 
 ### 3.3 Embedding & Milvus 向量索引
 
-- [ ] **3.3.1** 创建 `src/core/rag/ingestion/pipeline.py`
+- [x] **3.3.1** 创建 `src/core/rag/ingestion/pipeline.py`
   - LlamaIndex IngestionPipeline
   - 转换链: Parser → Chunker → Embedding → Storage
 
-- [ ] **3.3.2** 实现 Milvus VectorStore 集成
+- [x] **3.3.2** 实现 Milvus VectorStore 集成
   - Collection 管理
   - 向量插入
 
 ### 3.4 基础检索 (Dense Retrieval)
 
-- [ ] **3.4.1** 创建 `src/core/rag/retrieval/dense.py`
+- [x] **3.4.1** 创建 `src/core/rag/retrieval/dense.py`
   - MilvusDenseRetriever
   - top_k 检索
 
-- [ ] **3.4.2** 创建 `src/core/rag/retrieval/retriever.py`
+- [x] **3.4.2** 创建 `src/core/rag/retrieval/retriever.py`
   - 检索器统一接口
 
 ### 3.5 答案合成
 
-- [ ] **3.5.1** 创建 `src/core/rag/synthesis/synthesizer.py`
+- [x] **3.5.1** 创建 `src/core/rag/synthesis/synthesizer.py`
   - Context 加 LLM 生成答案
   - 引用提取
 
@@ -172,50 +172,50 @@
 
 ### 4.1 状态定义 & 基础图结构
 
-- [ ] **4.1.1** 创建 `src/core/orchestrator/state.py`
+- [x] **4.1.1** 创建 `src/core/orchestrator/state.py`
   - ConversationState 定义
   - 消息 / 上下文 / 意图 / RAG 结果
 
-- [ ] **4.1.2** 创建 `src/core/orchestrator/graph.py`
+- [x] **4.1.2** 创建 `src/core/orchestrator/graph.py`
   - StateGraph 构建
   - 节点注册
   - 边定义 (START → END)
 
 ### 4.2 查询理解节点
 
-- [ ] **4.2.1** 创建 `src/core/orchestrator/nodes/query_understanding.py`
+- [x] **4.2.1** 创建 `src/core/orchestrator/nodes/query_understanding.py`
   - 查询改写 (Query Rewriting)
   - 意图识别 (Intent Detection)
 
 ### 4.3 RAG Agent 节点
 
-- [ ] **4.3.1** 创建 `src/core/orchestrator/nodes/rag_agent.py`
+- [x] **4.3.1** 创建 `src/core/orchestrator/nodes/rag_agent.py`
   - 调用检索器
   - 调用答案合成器
   - 返回结果
 
-### 4.4 Codex 降级兜底节点
+### 4.4 降级兜底节点 (轻量LLM)
 
-- [ ] **4.4.1** 创建 `src/core/orchestrator/nodes/codex_fallback.py`
+- [x] **4.4.1** 创建 `src/core/orchestrator/nodes/fallback_node.py`
   - 检测 RAG 质量不足
-  - 降级到轻量模型回答
+  - 降级到轻量模型回答 (使用 FALLBACK_LLM_MODEL)
 
 ### 4.5 基础置信度评估
 
-- [ ] **4.5.1** 创建 `src/core/orchestrator/nodes/quality_gate.py`
+- [x] **4.5.1** 创建 `src/core/orchestrator/nodes/quality_gate.py`
   - 置信度评分
   - 阈值判断
   - 降级/通过/拒绝路由
 
 ### 4.6 响应合成节点
 
-- [ ] **4.6.1** 创建 `src/core/orchestrator/nodes/response_synthesizer.py`
+- [x] **4.6.1** 创建 `src/core/orchestrator/nodes/response_synthesizer.py`
   - 最终答案组装
   - 引用格式化
 
 ### 4.7 编排引擎封装
 
-- [ ] **4.7.1** 创建 `src/core/orchestrator/engine.py`
+- [x] **4.7.1** 重写 `src/core/orchestrator/engine.py`
   - 封装 LangGraph 调用
   - 初始化 orchestrator
 
@@ -291,11 +291,11 @@
 |------|--------|--------|------|
 | Week 1 | 10 | 10 | 100% |
 | Week 2 | 17 | 17 | 100% |
-| Week 3 | 8 | 0 | 0% |
-| Week 4 | 8 | 0 | 0% |
+| Week 3 | 7 | 7 | 100% |
+| Week 4 | 8 | 8 | 100% |
 | Week 5 | 7 | 0 | 0% |
 | Week 6 | 7 | 0 | 0% |
-| **总计** | **55** | **27** | **49%** |
+| **总计** | **56** | **42** | **75%** |
 
 ------
 
@@ -306,3 +306,5 @@
 | 2026-03-18 | 初始化 Phase 1 任务跟踪文档 |
 | 2026-03-18 | Week 1 完成：项目基础设施搭建 |
 | 2026-03-18 | Week 2 完成：FastAPI 服务层 & 基础对话 |
+| 2026-03-18 | Week 3 完成：LlamaIndex RAG 管道 |
+| 2026-03-18 | Week 4 完成：LangGraph 对话编排 (轻量LLM降级替代Codex) |
