@@ -11,7 +11,7 @@
 | 周次 | 模块 | 进度 | 状态 |
 |------|------|------|------|
 | Week 1 | 项目基础设施搭建 | 100% | 🟢 Completed |
-| Week 2 | FastAPI 服务层 & 基础对话 | 0% | 🔴 Pending |
+| Week 2 | FastAPI 服务层 & 基础对话 | 100% | 🟢 Completed |
 | Week 3 | LlamaIndex RAG 管道 | 0% | 🔴 Pending |
 | Week 4 | LangGraph 对话编排 | 0% | 🔴 Pending |
 | Week 5 | 集成联调 & 异步文档处理 | 0% | 🔴 Pending |
@@ -88,40 +88,40 @@
 
 ### 2.1 API 接口开发
 
-- [ ] **2.1.1** 创建 `src/infra/database/postgres.py` (连接池管理)
-- [ ] **2.1.2** 创建 `src/infra/database/redis_client.py` (连接管理)
-- [ ] **2.1.3** 创建 `src/infra/database/milvus_client.py` (客户端初始化)
+- [x] **2.1.1** 创建 `src/infra/database/postgres.py` (连接池管理)
+- [x] **2.1.2** 创建 `src/infra/database/redis_client.py` (连接管理)
+- [x] **2.1.3** 创建 `src/infra/database/milvus_client.py` (客户端初始化)
 
-- [ ] **2.1.4** 创建 `src/schemas/common.py` (基础响应模型)
-- [ ] **2.1.5** 创建 `src/schemas/chat.py` (对话请求/响应模型)
-- [ ] **2.1.6** 创建 `src/schemas/document.py` (文档模型)
+- [x] **2.1.4** 创建 `src/schemas/common.py` (基础响应模型)
+- [x] **2.1.5** 创建 `src/schemas/chat.py` (对话请求/响应模型)
+- [x] **2.1.6** 创建 `src/schemas/document.py` (文档模型)
 
-- [ ] **2.1.7** 创建 `src/api/routers/health.py` (健康检查接口)
-- [ ] **2.1.8** 创建 `src/api/routers/chat.py` (对话接口 - 同步)
-- [ ] **2.1.9** 创建 `src/api/routers/documents.py` (文档上传接口)
+- [x] **2.1.7** 创建 `src/api/routers/health.py` (健康检查接口)
+- [x] **2.1.8** 创建 `src/api/routers/chat.py` (对话接口 - 同步)
+- [x] **2.1.9** 创建 `src/api/routers/documents.py` (文档上传接口)
 
 ### 2.2 SSE 流式响应
 
-- [ ] **2.2.1** 在 `chat.py` 中实现 `/completions/stream` 端点
-- [ ] **2.2.2** 实现 `EventSourceResponse` 流式事件生成器
-- [ ] **2.2.3** 支持 `token` / `citation` / `status` / `done` / `error` 事件类型
+- [x] **2.2.1** 在 `chat.py` 中实现 `/completions/stream` 端点
+- [x] **2.2.2** 实现 `EventSourceResponse` 流式事件生成器
+- [x] **2.2.3** 支持 `token` / `citation` / `status` / `done` / `error` 事件类型
 
 ### 2.3 短期记忆 (Redis 会话管理)
 
-- [ ] **2.3.1** 创建 `src/core/memory/short_term.py`
+- [x] **2.3.1** 创建 `src/core/memory/short_term.py`
   - Redis List 存储会话历史
   - TTL 管理 (24小时)
   - 消息追加/读取
 
-- [ ] **2.3.2** 创建 `src/core/memory/manager.py`
+- [x] **2.3.2** 创建 `src/core/memory/manager.py`
   - 多层记忆统一接口
   - 上下文加载/保存
 
 ### 2.4 基础日志模块
 
-- [ ] **2.4.1** 创建 `src/api/middlewares/logging_middleware.py`
-- [ ] **2.4.2** 创建 `src/api/middlewares/error_handler.py`
-- [ ] **2.4.3** 创建 `src/api/main.py` (应用入口 & 生命周期)
+- [x] **2.4.1** 创建 `src/api/middlewares/logging_middleware.py`
+- [x] **2.4.2** 创建 `src/api/middlewares/error_handler.py`
+- [x] **2.4.3** 创建 `src/api/main.py` (应用入口 & 生命周期)
 
 ------
 
@@ -290,12 +290,12 @@
 | 周次 | 任务数 | 完成数 | 进度 |
 |------|--------|--------|------|
 | Week 1 | 10 | 10 | 100% |
-| Week 2 | 15 | 0 | 0% |
+| Week 2 | 17 | 17 | 100% |
 | Week 3 | 8 | 0 | 0% |
 | Week 4 | 8 | 0 | 0% |
 | Week 5 | 7 | 0 | 0% |
 | Week 6 | 7 | 0 | 0% |
-| **总计** | **55** | **10** | **18%** |
+| **总计** | **55** | **27** | **49%** |
 
 ------
 
@@ -305,3 +305,4 @@
 |------|----------|
 | 2026-03-18 | 初始化 Phase 1 任务跟踪文档 |
 | 2026-03-18 | Week 1 完成：项目基础设施搭建 |
+| 2026-03-18 | Week 2 完成：FastAPI 服务层 & 基础对话 |

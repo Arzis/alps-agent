@@ -116,6 +116,18 @@ class Settings(BaseSettings):
     # === 会话配置 ===
     SESSION_TTL: int = 86400  # 会话 TTL (24小时, 单位: 秒)
 
+    # === 短期记忆配置 ===
+    SHORT_TERM_MEMORY_TTL: int = 86400  # 短期记忆 TTL (秒)，默认 24 小时
+    MAX_SHORT_TERM_MESSAGES: int = 20   # 短期记忆最大消息数
+
+    # === 日志配置 ===
+    LOG_LEVEL: str = "INFO"   # 日志级别: DEBUG / INFO / WARNING / ERROR
+    LOG_FORMAT: str = "json"  # 日志格式: json / console
+
+    # === 文件上传配置 ===
+    UPLOAD_ALLOWED_EXTENSIONS: set[str] = {".pdf", ".docx", ".md", ".txt"}  # 允许的文件类型
+    MAX_UPLOAD_SIZE_MB: int = 50  # 最大上传文件大小 (MB)
+
 
 @lru_cache
 def get_settings() -> Settings:
