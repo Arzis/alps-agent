@@ -10,7 +10,7 @@
 
 | 周次 | 模块 | 进度 | 状态 |
 |------|------|------|------|
-| Week 1 | 项目基础设施搭建 | 0% | 🔴 Pending |
+| Week 1 | 项目基础设施搭建 | 100% | 🟢 Completed |
 | Week 2 | FastAPI 服务层 & 基础对话 | 0% | 🔴 Pending |
 | Week 3 | LlamaIndex RAG 管道 | 0% | 🔴 Pending |
 | Week 4 | LangGraph 对话编排 | 0% | 🔴 Pending |
@@ -23,7 +23,7 @@
 
 ### 1.1 项目脚手架 & 规范制定
 
-- [ ] **1.1.1** 创建目录结构（Phase 1 精简版）
+- [x] **1.1.1** 创建目录结构（Phase 1 精简版）
   - `src/api/` - FastAPI 应用层
   - `src/core/` - 核心业务层
   - `src/infra/` - 基础设施层
@@ -32,52 +32,52 @@
   - `scripts/` - 脚本目录
   - `docker/` - Docker 配置
 
-- [ ] **1.1.2** 创建 `pyproject.toml` 依赖配置文件
+- [x] **1.1.2** 创建 `pyproject.toml` 依赖配置文件
   - FastAPI / Uvicorn / SSE
   - LangChain / LangGraph / LlamaIndex
   - asyncpg / redis / pymilvus
   - structlog / pydantic / arq
   - pypdf / python-docx
 
-- [ ] **1.1.3** 创建 `Makefile` 常用命令
+- [x] **1.1.3** 创建 `Makefile` 常用命令
   - `setup` / `dev` / `up` / `down`
   - `test` / `lint` / `format` / `clean`
   - `worker` / `logs`
 
-- [ ] **1.1.4** 创建 `.gitignore` 和 `.env.example`
+- [x] **1.1.4** 创建 `.gitignore` 和 `.env.example`
 
 ### 1.2 Docker Compose 开发环境
 
-- [ ] **1.2.1** 创建 `docker/docker-compose.yml`
+- [x] **1.2.1** 创建 `docker/docker-compose.yml`
   - PostgreSQL 16 (结构化数据)
   - Redis Stack (缓存/会话)
   - Milvus Standalone (向量数据库)
   - etcd (Milvus 依赖)
   - MinIO (对象存储)
 
-- [ ] **1.2.2** 创建 `docker/configs/redis/redis.conf`
+- [x] **1.2.2** 创建 `docker/configs/redis/redis.conf`
 
 ### 1.3 配置管理 & 基础中间件
 
-- [ ] **1.3.1** 创建 `src/infra/config/settings.py` (Pydantic Settings)
+- [x] **1.3.1** 创建 `src/infra/config/settings.py` (Pydantic Settings)
   - 应用配置 (APP_NAME / VERSION / ENV)
   - LLM 配置 (OpenAI API Key / 模型 / Temperature)
   - PostgreSQL / Redis / Milvus 连接配置
   - RAG 配置 (chunk_size / top_k / threshold)
   - 并发控制配置
 
-- [ ] **1.3.2** 创建 `src/infra/logging/logger.py` (Structlog 配置)
+- [x] **1.3.2** 创建 `src/infra/logging/logger.py` (Structlog 配置)
   - JSON 格式日志
   - 请求上下文绑定
 
 ### 1.4 数据库初始化
 
-- [ ] **1.4.1** 创建 `docker/configs/postgres/init.sql`
+- [x] **1.4.1** 创建 `docker/configs/postgres/init.sql`
   - `conversation_sessions` 表
   - `conversation_messages` 表
   - `documents` 表
 
-- [ ] **1.4.2** 创建 `scripts/init_db.py`
+- [x] **1.4.2** 创建 `scripts/init_db.py`
   - Milvus Collection 创建
   - 向量索引配置 (HNSW)
   - 连接验证
@@ -289,13 +289,13 @@
 
 | 周次 | 任务数 | 完成数 | 进度 |
 |------|--------|--------|------|
-| Week 1 | 10 | 0 | 0% |
+| Week 1 | 10 | 10 | 100% |
 | Week 2 | 15 | 0 | 0% |
 | Week 3 | 8 | 0 | 0% |
 | Week 4 | 8 | 0 | 0% |
 | Week 5 | 7 | 0 | 0% |
 | Week 6 | 7 | 0 | 0% |
-| **总计** | **55** | **0** | **0%** |
+| **总计** | **55** | **10** | **18%** |
 
 ------
 
@@ -304,3 +304,4 @@
 | 日期 | 更新内容 |
 |------|----------|
 | 2026-03-18 | 初始化 Phase 1 任务跟踪文档 |
+| 2026-03-18 | Week 1 完成：项目基础设施搭建 |
