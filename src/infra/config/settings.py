@@ -108,10 +108,15 @@ class Settings(BaseSettings):
     RAG_CHUNK_OVERLAP: int = 50     # 分块重叠大小 (保持上下文连贯性)
     RAG_TOP_K: int = 5              # 检索返回的最相关文档块数量
     RAG_MIN_CONFIDENCE: float = 0.7 # RAG 回答最低置信度阈值
+    RAG_SIMILARITY_THRESHOLD: float = 0.7  # 检索结果最低相似度阈值
+
+    # === LLM 配置补充 ===
+    LLM_TIMEOUT: int = 60  # LLM 请求超时 (秒)
 
     # === 并发控制配置 ===
     MAX_CONCURRENT_REQUESTS: int = 10   # 最大并发请求数
     REQUEST_TIMEOUT: int = 120          # 请求超时时间 (秒)
+    MAX_EMBEDDING_CONCURRENT: int = 5  # Embedding 最大并发数
 
     # === 会话配置 ===
     SESSION_TTL: int = 86400  # 会话 TTL (24小时, 单位: 秒)
