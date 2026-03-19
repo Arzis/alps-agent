@@ -142,6 +142,12 @@ class Settings(BaseSettings):
     CONFIDENCE_THRESHOLD_PASS: float = 0.7  # 通过阈值
     CONFIDENCE_THRESHOLD_FALLBACK: float = 0.4  # 降级阈值
 
+    # === LangFuse 配置 ===
+    LANGFUSE_ENABLED: bool = False  # 是否启用 LangFuse
+    LANGFUSE_PUBLIC_KEY: str = ""  # LangFuse Public Key
+    LANGFUSE_SECRET_KEY: str = ""  # LangFuse Secret Key
+    LANGFUSE_HOST: str = "http://localhost:3000"  # LangFuse 服务地址
+
     # === 日志配置 ===
     LOG_LEVEL: str = "INFO"   # 日志级别: DEBUG / INFO / WARNING / ERROR
     LOG_FORMAT: str = "json"  # 日志格式: json / console

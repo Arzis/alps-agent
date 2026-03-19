@@ -76,6 +76,7 @@ class ConversationOrchestrator:
         memory_manager: MemoryManager,
         pg_pool,
         compiled_graph: Callable,
+        llm_tracer=None,
     ):
         """
         初始化编排器
@@ -84,10 +85,12 @@ class ConversationOrchestrator:
             memory_manager: 记忆管理器实例
             pg_pool: PostgreSQL 连接池
             compiled_graph: 编译后的 LangGraph
+            llm_tracer: LLM 追踪器 (可选，用于 LangFuse)
         """
         self.memory = memory_manager
         self.pg_pool = pg_pool
         self.graph = compiled_graph
+        self.tracer = llm_tracer
 
     async def run(
         self,
@@ -110,28 +113,52 @@ class ConversationOrchestrator:
         """
         start_time = time.time()
 
-        # 加载对话历史
-        history = await self.memory.load_context(session_id, max_turns=5)
+        # 创建 LangFuse 追踪 (如果启用)
+        trace_ctx = None
+        if self.tracer:
+            trace_ctx = self.tracer.create_trace(
+                session_id=session_id,
+                name="chat_completion",
+                metadata={"collection": collection, "query": message[:200]},
+            )
 
-        logger.info(
-            "orchestrator_run",
-            session_id=session_id,
-            message_length=len(message),
-            history_turns=len(history) // 2,
-            collection=collection,
-        )
-
-        # 构建初始状态
-        initial_state = ConversationState(
-            session_id=session_id,
-            user_message=message,
-            collection=collection,
-            history_turns=history,
-        )
-
-        # 调用 LangGraph 执行
         try:
-            final_state = await self.graph.ainvoke(initial_state)
+            # 加载对话历史
+            if trace_ctx:
+                history_span = trace_ctx.span(name="load_memory")
+
+            history = await self.memory.load_context(session_id, max_turns=5)
+
+            if trace_ctx:
+                history_span.end()
+
+            logger.info(
+                "orchestrator_run",
+                session_id=session_id,
+                message_length=len(message),
+                history_turns=len(history) // 2,
+                collection=collection,
+            )
+
+            # 构建初始状态
+            initial_state = ConversationState(
+                session_id=session_id,
+                user_message=message,
+                collection=collection,
+                history_turns=history,
+            )
+
+            # 获取 LangChain 回调 (自动追踪 LLM 调用)
+            langfuse_callback = None
+            if trace_ctx and self.tracer:
+                langfuse_callback = self.tracer.get_langchain_callback(session_id)
+
+            thread_config = {}
+            if langfuse_callback:
+                thread_config["callbacks"] = [langfuse_callback]
+
+            # 调用 LangGraph 执行
+            final_state = await self.graph.ainvoke(initial_state, config=thread_config)
 
             # 从最终状态提取结果
             # 注意：最终状态可能是 OrchestratorResult 或 ConversationState
@@ -140,6 +167,14 @@ class ConversationOrchestrator:
             else:
                 # 如果返回的是 ConversationState，转换为 OrchestratorResult
                 result = self._state_to_result(final_state)
+
+            # 记录质量分数到 LangFuse
+            if trace_ctx:
+                trace_ctx.score(name="confidence", value=result.confidence)
+                trace_ctx.score(
+                    name="cache_hit",
+                    value=1.0 if getattr(final_state, "cache_hit", False) else 0.0,
+                )
 
             # 保存对话到记忆
             await self.memory.save_turn(
@@ -157,6 +192,17 @@ class ConversationOrchestrator:
             # 计算延迟
             latency_ms = (time.time() - start_time) * 1000
 
+            # 更新 Trace
+            if trace_ctx:
+                trace_ctx.update(
+                    output=result.answer[:500],
+                    metadata={
+                        "latency_ms": latency_ms,
+                        "cache_hit": getattr(final_state, "cache_hit", False),
+                        "fallback_used": result.fallback_used,
+                    },
+                )
+
             logger.info(
                 "orchestrator_completed",
                 session_id=session_id,
@@ -168,12 +214,17 @@ class ConversationOrchestrator:
             return result
 
         except Exception as e:
+            if trace_ctx:
+                trace_ctx.score(name="error", value=1.0, comment=str(e))
             logger.error(
                 "orchestrator_failed",
                 session_id=session_id,
                 error=str(e),
             )
             raise
+        finally:
+            if trace_ctx:
+                trace_ctx.flush()
 
     async def stream(
         self,
@@ -409,11 +460,18 @@ async def init_orchestrator(
 
     compiled_graph = compile_graph(graph)
 
+    # === 初始化 LangFuse 追踪器 (Phase 2) ===
+    from src.infra.logging.langfuse_tracer import init_langfuse, LLMTracer
+
+    langfuse = init_langfuse()
+    llm_tracer = LLMTracer(langfuse) if langfuse else None
+
     # 创建编排引擎
     orchestrator = ConversationOrchestrator(
         memory_manager=memory_manager,
         pg_pool=pg_pool,
         compiled_graph=compiled_graph,
+        llm_tracer=llm_tracer,
     )
 
     logger.info("orchestrator_initialized")

@@ -14,7 +14,7 @@ from src.infra.database.milvus_client import init_milvus
 from src.infra.logging.logger import configure_logging
 from src.api.middlewares.error_handler import register_exception_handlers
 from src.api.middlewares.logging_middleware import RequestLoggingMiddleware
-from src.api.routers import chat, documents, health
+from src.api.routers import chat, documents, health, evaluation
 
 import structlog
 
@@ -139,6 +139,8 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, prefix=settings.API_PREFIX)
     # Documents 路由 (带 /api/v1 前缀)
     app.include_router(documents.router, prefix=settings.API_PREFIX)
+    # Evaluation 路由 (带 /api/v1 前缀)
+    app.include_router(evaluation.router, prefix=settings.API_PREFIX)
 
     return app
 
