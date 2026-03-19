@@ -14,6 +14,7 @@ from src.core.memory.manager import MemoryManager
 from src.core.orchestrator.state import ConversationState, OrchestratorResult
 from src.core.orchestrator.graph import create_conversation_graph, compile_graph
 from src.core.orchestrator.nodes.query_understanding import QueryUnderstandingNode
+from src.core.orchestrator.nodes.cache_lookup import CacheLookupNode
 from src.core.orchestrator.nodes.rag_agent import RAGAgentNode
 from src.core.orchestrator.nodes.fallback_node import FallbackNode
 from src.core.orchestrator.nodes.quality_gate import QualityGateNode
@@ -21,6 +22,8 @@ from src.core.orchestrator.nodes.response_synthesizer import ResponseSynthesizer
 from src.core.rag.retrieval.retriever import RAGRetriever
 from src.core.rag.retrieval.dense import DenseRetriever
 from src.core.rag.synthesis.synthesizer import AnswerSynthesizer
+from src.infra.cache.cache_manager import CacheManager
+from src.infra.cache.semantic_cache import SemanticCache
 from src.infra.config.settings import Settings
 
 logger = structlog.get_logger()
@@ -47,16 +50,25 @@ class ConversationOrchestrator:
     2. 处理对话请求 (调用 LangGraph)
     3. 管理会话持久化
 
-    节点流程：
-    query_understanding → rag_agent → quality_gate
-                                               ↓
-                        ┌──────────┬───────────────┴────────────┐
-                        ↓          ↓                               ↓
-                    direct      fallback                       reject
-                        ↓          ↓                               ↓
-                        └──────────┴───────────────────────────────┘
+    节点流程 (Phase 2):
+    query_understanding → cache_lookup → [条件分支]
                                               ↓
-                                     response_synthesizer → END
+                    ┌─────────────────────────┼─────────────────────────┐
+                    ↓                         ↓                         ↓
+               skip_to_end               codex_fallback              rag_agent
+               (缓存命中)                    (闲聊)                 (知识问答)
+                    ↓                         ↓                         ↓
+                    END                       END                   quality_gate
+                                                                       ↓
+                                            ┌─────────────────────────┼─────────────────────────┐
+                                            ↓                         ↓                         ↓
+                                       direct                      fallback                    reject
+                                            ↓                         ↓                         ↓
+                                            └─────────────────────────┴─────────────────────────┘
+                                                                      ↓
+                                                             response_synthesizer
+                                                                      ↓
+                                                                     END
     """
 
     def __init__(
@@ -126,8 +138,8 @@ class ConversationOrchestrator:
             if isinstance(final_state, OrchestratorResult):
                 result = final_state
             else:
-                # 如果返回的是状态，需要再次调用响应合成
-                result = final_state
+                # 如果返回的是 ConversationState，转换为 OrchestratorResult
+                result = self._state_to_result(final_state)
 
             # 保存对话到记忆
             await self.memory.save_turn(
@@ -279,6 +291,34 @@ class ConversationOrchestrator:
         await self.memory.clear_session(session_id)
         logger.info("session_deleted", session_id=session_id)
 
+    def _state_to_result(self, state: ConversationState) -> OrchestratorResult:
+        """将 ConversationState 转换为 OrchestratorResult
+
+        用于处理图直接返回 ConversationState 的情况（如缓存命中）。
+
+        Args:
+            state: 对话状态
+
+        Returns:
+            OrchestratorResult: 编排结果
+        """
+        # 根据路由决策选择回答
+        if state.route == "reject":
+            answer = "抱歉，我无法找到与您问题相关的信息，建议您查阅相关文档或联系管理员。"
+        elif state.rag_answer:
+            answer = state.rag_answer
+        else:
+            answer = "抱歉，我现在无法回答您的问题，请稍后重试。"
+
+        return OrchestratorResult(
+            answer=answer,
+            citations=state.citations if not state.fallback_used else [],
+            confidence=state.confidence,
+            model_used=state.model_used,
+            fallback_used=state.fallback_used,
+            tokens_used=state.tokens_used,
+        )
+
 
 async def init_orchestrator(
     pg_pool,
@@ -320,6 +360,33 @@ async def init_orchestrator(
     # 创建答案合成器
     synthesizer = AnswerSynthesizer(settings=settings)
 
+    # === 创建缓存节点 (Phase 2) ===
+    # 创建 Embedding 函数
+    async def get_embedding(text: str) -> list[float]:
+        """获取文本 Embedding 向量"""
+        from langchain_openai import OpenAIEmbeddings
+        embeddings = OpenAIEmbeddings(
+            model=settings.EMBEDDING_MODEL,
+            api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
+            base_url=settings.DASHSCOPE_BASE_URL,
+        )
+        return await embeddings.aembed_query(text)
+
+    # 创建语义缓存
+    semantic_cache = SemanticCache(
+        redis=redis_client,
+        embedding_fn=get_embedding,
+        similarity_threshold=settings.SEMANTIC_CACHE_THRESHOLD,
+        ttl=settings.SEMANTIC_CACHE_TTL,
+        embedding_dim=settings.EMBEDDING_DIMENSION,
+    )
+
+    # 创建缓存管理器
+    cache_manager = CacheManager(semantic_cache=semantic_cache)
+
+    # 创建缓存查询节点
+    cache_lookup_node = CacheLookupNode(cache_manager=cache_manager)
+
     # === 创建 LangGraph 节点 ===
     query_understanding_node = QueryUnderstandingNode(settings=settings)
     rag_agent_node = RAGAgentNode(
@@ -333,6 +400,7 @@ async def init_orchestrator(
     # === 创建并编译图 ===
     graph = create_conversation_graph(
         query_understanding_node=query_understanding_node,
+        cache_lookup_node=cache_lookup_node,
         rag_agent_node=rag_agent_node,
         fallback_node=fallback_node,
         quality_gate_node=quality_gate_node,

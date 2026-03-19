@@ -57,6 +57,7 @@ class ConversationState:
 
     # === 路由字段 ===
     route: Literal["rag", "fallback", "reject", "direct"] = "rag"  # 路由决策
+    cache_hit: bool = False  # 是否命中缓存
 
     # === 错误处理 ===
     error: str = ""                               # 错误信息

@@ -133,6 +133,15 @@ class Settings(BaseSettings):
     SHORT_TERM_MEMORY_TTL: int = 86400  # 短期记忆 TTL (秒)，默认 24 小时
     MAX_SHORT_TERM_MESSAGES: int = 20   # 短期记忆最大消息数
 
+    # === 语义缓存配置 ===
+    SEMANTIC_CACHE_ENABLED: bool = True  # 是否启用语义缓存
+    SEMANTIC_CACHE_THRESHOLD: float = 0.92  # 语义相似度阈值
+    SEMANTIC_CACHE_TTL: int = 86400  # 缓存 TTL (秒)
+
+    # === 置信度评估配置 ===
+    CONFIDENCE_THRESHOLD_PASS: float = 0.7  # 通过阈值
+    CONFIDENCE_THRESHOLD_FALLBACK: float = 0.4  # 降级阈值
+
     # === 日志配置 ===
     LOG_LEVEL: str = "INFO"   # 日志级别: DEBUG / INFO / WARNING / ERROR
     LOG_FORMAT: str = "json"  # 日志格式: json / console
