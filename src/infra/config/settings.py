@@ -107,6 +107,10 @@ class Settings(BaseSettings):
         """构建 Milvus HTTP 连接 URI"""
         return f"http://{self.MILVUS_HOST}:{self.MILVUS_PORT}"
 
+    # === Elasticsearch 配置 (稀疏检索 / BM25) ===
+    ELASTICSEARCH_URL: str = "http://localhost:9200"  # ES 连接地址
+    ELASTICSEARCH_INDEX_PREFIX: str = "qa_chunks"  # ES 索引前缀
+
     # === RAG 配置 (检索增强生成) ===
     RAG_CHUNK_SIZE: int = 512       # 文档分块大小 (字符数)
     RAG_CHUNK_OVERLAP: int = 50     # 分块重叠大小 (保持上下文连贯性)

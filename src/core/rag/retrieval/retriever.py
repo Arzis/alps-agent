@@ -1,50 +1,66 @@
-"""RAG 检索器统一接口模块"""
+"""RAG 检索器统一接口模块
+
+Phase 2: Dense + Sparse (BM25) + RRF + Rerank
+"""
+
+import structlog
 
 from src.core.rag.retrieval.dense import DenseRetriever, RetrievedChunk
+from src.core.rag.retrieval.sparse import SparseRetriever
+from src.core.rag.retrieval.hybrid import HybridRetriever
+from src.core.rag.retrieval.reranker import BaseReranker, CrossEncoderReranker
+
+logger = structlog.get_logger()
 
 
 class RAGRetriever:
     """
     RAG 检索器 - 统一检索接口
 
-    Phase 1: 仅 Dense
-    Phase 2: Dense + Sparse (BM25) + Rerank
-    Phase 3: Dense + Sparse + KG + Rerank
+    Phase 2:
+    - Dense + Sparse 多路召回
+    - RRF 融合
+    - Cross-Encoder Rerank
+    - 支持查询扩展 (Multi-Query)
     """
 
-    def __init__(self, dense_retriever: DenseRetriever):
+    def __init__(
+        self,
+        dense_retriever: DenseRetriever,
+        sparse_retriever: SparseRetriever | None = None,
+        reranker: BaseReranker | None = None,
+    ):
         """初始化检索器
 
         Args:
-            dense_retriever: Dense 检索器实例
+            dense_retriever: Dense 检索器 (Milvus)
+            sparse_retriever: Sparse 检索器 (ES BM25)，可选
+            reranker: 重排器 (Cross-Encoder)，可选
         """
-        self.dense = dense_retriever
+        self.hybrid = HybridRetriever(
+            dense_retriever=dense_retriever,
+            sparse_retriever=sparse_retriever,
+            reranker=reranker,
+        )
 
     async def retrieve(
         self,
         query: str,
         collection: str = "default",
         top_k: int = 5,
+        expanded_queries: list[str] | None = None,
     ) -> list[RetrievedChunk]:
-        """检索文档
-
-        Phase 1: 直接使用 Dense 检索
+        """统一检索接口
 
         Args:
-            query: 查询文本
-            collection: 知识库集合名称，默认 "default"
-            top_k: 返回的最相关结果数量，默认 5
-
-        Returns:
-            list[RetrievedChunk]: 检索到的文档块列表
+            query: 主查询 (建议使用改写后的查询)
+            collection: 知识库集合名
+            top_k: 返回结果数
+            expanded_queries: 扩展查询列表 (查询理解节点生成)
         """
-        # Dense 检索 (多取一些，预留给后续 Rerank)
-        results = await self.dense.retrieve(
+        return await self.hybrid.retrieve(
             query=query,
+            expanded_queries=expanded_queries,
             collection=collection,
-            top_k=top_k * 2,  # 多召回一些
+            top_k=top_k,
         )
-
-        # Phase 1: 直接截取 top_k
-        # Phase 2+: 这里会增加 RRF 融合 + Rerank
-        return results[:top_k]
