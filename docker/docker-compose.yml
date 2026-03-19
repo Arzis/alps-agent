@@ -101,6 +101,7 @@ services:
     ports:
       - "19530:19530"
       - "9091:9091"
+    command: milvus run standalone
     depends_on:
       etcd:
         condition: service_healthy
@@ -112,6 +113,20 @@ services:
       start_period: 90s
       timeout: 20s
       retries: 3
+    networks:
+      - qa-network
+
+  # ======= 添加 Attu 服务 =======
+  attu:
+    container_name: qa-milvus-attu
+    image: zilliz/attu:latest
+    ports:
+      - "3000:3000"
+    environment:
+      MILVUS_URL: milvus:19530
+    depends_on:
+      milvus:
+        condition: service_healthy
     networks:
       - qa-network
 

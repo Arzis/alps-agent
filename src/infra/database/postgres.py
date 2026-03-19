@@ -2,6 +2,7 @@
 
 import asyncpg
 from src.infra.config.settings import get_settings
+from src.api.middlewares.error_handler import AppError
 
 # 全局连接池变量
 _pool: asyncpg.Pool | None = None
@@ -34,10 +35,14 @@ async def get_postgres_pool() -> asyncpg.Pool:
         asyncpg.Pool: PostgreSQL 连接池实例
 
     Raises:
-        RuntimeError: 如果连接池未初始化
+        AppError: 如果连接池未初始化 (503 Service Unavailable)
     """
     if _pool is None:
-        raise RuntimeError("PostgreSQL pool not initialized. Call init_postgres_pool() first.")
+        raise AppError(
+            message="PostgreSQL pool not initialized - service may be starting up",
+            status_code=503,
+            error_code="SERVICE_UNAVAILABLE",
+        )
     return _pool
 
 

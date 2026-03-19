@@ -2,6 +2,7 @@
 
 import redis.asyncio as aioredis
 from src.infra.config.settings import get_settings
+from src.api.middlewares.error_handler import AppError
 
 # 全局 Redis 客户端变量
 _redis: aioredis.Redis | None = None
@@ -35,10 +36,14 @@ async def get_redis() -> aioredis.Redis:
         aioredis.Redis: Redis 异步客户端实例
 
     Raises:
-        RuntimeError: 如果 Redis 客户端未初始化
+        AppError: 如果 Redis 客户端未初始化 (503 Service Unavailable)
     """
     if _redis is None:
-        raise RuntimeError("Redis not initialized. Call init_redis() first.")
+        raise AppError(
+            message="Redis not initialized - service may be starting up",
+            status_code=503,
+            error_code="SERVICE_UNAVAILABLE",
+        )
     return _redis
 
 

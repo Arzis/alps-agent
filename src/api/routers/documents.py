@@ -126,8 +126,15 @@ async def process_document_task(
         file_type: 文件类型
         collection: 知识库集合
     """
+    import os
     from src.core.rag.ingestion.pipeline import get_ingestion_pipeline
     from src.infra.database.postgres import get_postgres_pool
+
+    logger.info("process_document_task_started", doc_id=doc_id, file_path=file_path, file_type=file_type)
+
+    # 检查文件是否存在
+    abs_path = os.path.abspath(file_path)
+    logger.info("file_exists_check", doc_id=doc_id, path=abs_path, exists=os.path.exists(abs_path))
 
     pool = await get_postgres_pool()
 
@@ -157,14 +164,17 @@ async def process_document_task(
         )
 
     except Exception as e:
+        import traceback
+        error_msg = str(e) or repr(e)
+        error_detail = f"{error_msg}\n{traceback.format_exc()}"
         # 更新文档状态为失败
         await pool.execute(
             """UPDATE documents
                SET status = $1, error_message = $2, updated_at = NOW()
                WHERE id = $3""",
-            DocumentStatus.FAILED.value, str(e), doc_id,
+            DocumentStatus.FAILED.value, error_detail[:1000], doc_id,
         )
-        logger.error("document_processing_failed", doc_id=doc_id, error=str(e))
+        logger.error("document_processing_failed", doc_id=doc_id, error=error_detail, exc_info=True)
 
 
 @router.get("/{doc_id}", response_model=DocumentInfo)

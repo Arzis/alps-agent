@@ -31,21 +31,25 @@ class Settings(BaseSettings):
     WORKERS: int = 1         # Uvicorn 工作进程数 (开发环境1个，生产环境根据CPU核数设置)
 
     # === LLM 配置 ===
-    OPENAI_API_KEY: SecretStr                              # OpenAI API 密钥
-    OPENAI_API_BASE: str = "https://api.openai.com/v1"     # OpenAI API 基础地址
+    OPENAI_API_KEY: SecretStr = SecretStr("")              # OpenAI API 密钥 (已弃用，改用 DASHSCOPE_API_KEY)
+    OPENAI_API_BASE: str = "https://api.openai.com/v1"     # OpenAI API 基础地址 (已弃用)
+
+    # === DashScope 配置 (阿里云通义千问) ===
+    DASHSCOPE_API_KEY: SecretStr = SecretStr("")           # DashScope API 密钥
+    DASHSCOPE_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"  # DashScope API 地址
 
     # 主力模型配置 (用于复杂推理和高质量回答)
-    PRIMARY_LLM_MODEL: str = "gpt-4o"                      # 主力模型名称
+    PRIMARY_LLM_MODEL: str = "qwen-max"                     # 主力模型名称 (qwen-max / qwen-plus)
     PRIMARY_LLM_TEMPERATURE: float = 0.1                  # 温度参数 (低=确定性，高=创造性)
     PRIMARY_LLM_MAX_TOKENS: int = 4096                     # 最大生成 token 数
 
     # 降级模型配置 (用于简单查询和降级兜底)
-    FALLBACK_LLM_MODEL: str = "gpt-4o-mini"               # 降级模型名称
+    FALLBACK_LLM_MODEL: str = "qwen3-vl-flash"             # 降级模型名称 (qwen3-vl-flash / qwen3-flash)
     FALLBACK_LLM_TEMPERATURE: float = 0.0                  # 降级模型温度
 
     # Embedding 模型配置 (用于文档向量嵌入)
-    EMBEDDING_MODEL: str = "text-embedding-3-large"        # Embedding 模型名称
-    EMBEDDING_DIMENSION: int = 3072                        # Embedding 向量维度
+    EMBEDDING_MODEL: str = "text-embedding-v4"              # Embedding 模型名称 (text-embedding-v4)
+    EMBEDDING_DIMENSION: int = 1024                        # Embedding 向量维度 (v4 为 1024)
 
     # === PostgreSQL 配置 (结构化数据存储) ===
     POSTGRES_HOST: str = "localhost"    # 数据库主机地址
