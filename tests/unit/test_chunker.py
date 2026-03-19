@@ -1,12 +1,16 @@
 """文档分块器单元测试
 
-测试 DocumentChunker 类的分块功能。
+测试 DocumentChunker 类的分块功能 - Phase 2 增强版。
 """
 
 import pytest
 from llama_index.core import Document
 
-from src.core.rag.ingestion.chunker import DocumentChunker
+from src.core.rag.ingestion.chunker import (
+    DocumentChunker,
+    ChunkingStrategy,
+    ChunkerConfig,
+)
 
 
 class TestDocumentChunker:
@@ -171,7 +175,7 @@ class TestDocumentChunker:
         """测试元数据保留
 
         验证:
-        - 原始文档的元数据被保留
+        - 原始文档的元数据保留
         - 新增的元数据被正确添加
         """
         doc = Document(
@@ -188,3 +192,112 @@ class TestDocumentChunker:
             assert "chunk_index" in node.metadata
             assert "collection" in node.metadata
             assert "total_chunks" in node.metadata
+
+
+class TestChunkingStrategy:
+    """Phase 2 新增: 分块策略测试类"""
+
+    def test_chunking_strategy_enum(self):
+        """测试分块策略枚举值"""
+        assert ChunkingStrategy.RECURSIVE.value == "recursive"
+        assert ChunkingStrategy.SEMANTIC.value == "semantic"
+        assert ChunkingStrategy.AUTO.value == "auto"
+
+    def test_chunker_config(self):
+        """测试分块配置类"""
+        config = ChunkerConfig(
+            strategy=ChunkingStrategy.SEMANTIC,
+            chunk_size=256,
+            chunk_overlap=32,
+        )
+        assert config.strategy == ChunkingStrategy.SEMANTIC
+        assert config.chunk_size == 256
+        assert config.chunk_overlap == 32
+
+    def test_recursive_strategy_short_document(self):
+        """测试短文档自动选择递归分块
+
+        验证:
+        - 短文档 (<2000字) 应该使用递归分块
+        """
+        chunker = DocumentChunker(chunk_size=100, chunk_overlap=20)
+        doc = Document(text="短文档内容。" * 50, metadata={"source": "short.txt"})
+
+        nodes = chunker.chunk(
+            [doc],
+            doc_id="short_001",
+            collection="default",
+            strategy=ChunkingStrategy.AUTO,
+        )
+
+        assert len(nodes) >= 1
+        # 短文档应该使用 recursive 策略
+        assert nodes[0].metadata.get("chunking_strategy") == ChunkingStrategy.RECURSIVE.value
+
+    def test_recursive_strategy_explicit(self):
+        """测试显式指定递归分块策略
+
+        验证:
+        - 即使长文档也使用递归分块
+        """
+        chunker = DocumentChunker(chunk_size=100, chunk_overlap=20)
+        doc = Document(text="内容。" * 200, metadata={"source": "long.txt"})
+
+        nodes = chunker.chunk(
+            [doc],
+            doc_id="force_recursive_001",
+            collection="default",
+            strategy=ChunkingStrategy.RECURSIVE,
+        )
+
+        assert len(nodes) >= 1
+        assert nodes[0].metadata.get("chunking_strategy") == ChunkingStrategy.RECURSIVE.value
+
+    def test_auto_select_falls_back_to_recursive(self):
+        """测试没有embedding_model时自动回退到递归分块
+
+        验证:
+        - 没有语义分块器时，auto策略应该使用递归分块
+        """
+        # 不传入embedding_model，这样_semantic_splitter为None
+        chunker = DocumentChunker(chunk_size=100, chunk_overlap=20)
+        doc = Document(text="内容内容内容。" * 100, metadata={"source": "test.txt"})
+
+        # 即使用AUTO策略，由于没有语义分块器，应该回退到递归
+        nodes = chunker.chunk(
+            [doc],
+            doc_id="fallback_001",
+            collection="default",
+            strategy=ChunkingStrategy.AUTO,
+        )
+
+        assert len(nodes) >= 1
+        # 应该回退到递归分块
+        assert nodes[0].metadata.get("chunking_strategy") == ChunkingStrategy.RECURSIVE.value
+
+    def test_supports_semantic_property(self):
+        """测试 supports_semantic 属性"""
+        # 不带embedding model
+        chunker_without = DocumentChunker(chunk_size=100, chunk_overlap=20)
+        assert chunker_without.supports_semantic is False
+
+    def test_chunking_strategy_in_metadata(self):
+        """测试分块策略被记录在元数据中
+
+        验证:
+        - 每个chunk的metadata包含chunking_strategy
+        """
+        chunker = DocumentChunker(chunk_size=100, chunk_overlap=20)
+        doc = Document(text="测试内容。" * 50, metadata={"source": "test.txt"})
+
+        nodes = chunker.chunk(
+            [doc],
+            doc_id="strategy_meta_001",
+            collection="default",
+            strategy=ChunkingStrategy.RECURSIVE,
+        )
+
+        assert len(nodes) >= 1
+        for node in nodes:
+            assert "chunking_strategy" in node.metadata
+            assert node.metadata["chunking_strategy"] == ChunkingStrategy.RECURSIVE.value
