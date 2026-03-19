@@ -26,15 +26,6 @@ class TestDenseRetriever:
         )
 
     @pytest.fixture
-    def mock_embedding(self) -> MagicMock:
-        """Mock Embedding 模型"""
-        embedding = MagicMock(spec=OpenAIEmbedding)
-        embedding.aget_text_embedding = AsyncMock(
-            return_value=[0.1] * 3072
-        )
-        return embedding
-
-    @pytest.fixture
     def mock_milvus(self) -> MagicMock:
         """Mock Milvus 客户端"""
         milvus = MagicMock()
@@ -69,14 +60,19 @@ class TestDenseRetriever:
 
     @pytest.fixture
     def retriever(
-        self, mock_milvus: MagicMock, mock_embedding: MagicMock, settings: Settings
+        self, mock_milvus: MagicMock, settings: Settings
     ) -> DenseRetriever:
         """创建 DenseRetriever 实例"""
-        return DenseRetriever(
+        retriever = DenseRetriever(
             milvus_client=mock_milvus,
-            embedding_model=mock_embedding,
             settings=settings,
         )
+        # Mock embedding client
+        retriever._embedding_client = MagicMock()
+        retriever._embedding_client.embeddings.create = AsyncMock(return_value=MagicMock(
+            data=[MagicMock(embedding=[0.1] * 3072)]
+        ))
+        return retriever
 
     @pytest.mark.asyncio
     async def test_retrieve_returns_chunks(self, retriever: DenseRetriever):
@@ -205,7 +201,7 @@ class TestRAGRetriever:
         return RAGRetriever(dense_retriever=mock_dense_retriever)
 
     @pytest.mark.asyncio
-    async def test_retrieve_returns_results(self, rag_retriever: RAGRetriever):
+    async def test_retrieve_returns_results(self, rag_retriever: RAGRetriever, mock_dense_retriever: MagicMock):
         """测试检索返回结果
 
         验证:
@@ -249,7 +245,7 @@ class TestRAGRetriever:
         )
 
         assert len(results) == 3, "应该只返回 top_k 个结果"
-        # 验证 Dense 被调用时取了更多结果 (top_k * 2)
+        # 验证 Dense 被调用时取了更多结果 (top_k * 4)
         mock_dense_retriever.retrieve.assert_called_once()
 
     @pytest.mark.asyncio
@@ -284,5 +280,5 @@ class TestRAGRetriever:
         mock_dense_retriever.retrieve.assert_called_once_with(
             query="测试查询",
             collection="hr_docs",
-            top_k=20,  # top_k * 2
+            top_k=40,  # top_k * 4
         )

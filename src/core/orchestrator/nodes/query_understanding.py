@@ -213,8 +213,8 @@ class QueryUnderstandingNode:
         if not messages:
             return ""
 
-        # 取最近的N轮
-        recent = messages[-(max_turns * 2):] if len(messages) > 1 else []
+        # 取最近的N轮（每轮包含用户+助手两条消息）
+        recent = messages[-(max_turns * 2):] if len(messages) > 1 else messages
         if not recent:
             return ""
 

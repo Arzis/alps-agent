@@ -177,7 +177,7 @@ class TestIngestionPipeline:
 
         assert pipeline.parser is not None
         assert pipeline.chunker is not None
-        assert pipeline.embedding_model is not None
+        # IngestionPipeline 使用 _embedding_client，不是 embedding_model 属性
 
     @pytest.mark.asyncio
     async def test_pipeline_process_flow(
@@ -192,9 +192,9 @@ class TestIngestionPipeline:
         """
         pipeline = IngestionPipeline(settings)
 
-        # Mock embedding model
-        pipeline.embedding_model.aget_text_embedding_batch = AsyncMock(
-            return_value=[[0.1] * 3072]
+        # Mock embedding client
+        pipeline._embedding_client.embeddings.create = AsyncMock(
+            return_value=MagicMock(data=[MagicMock(embedding=[0.1] * 3072)])
         )
 
         # Mock Milvus
@@ -230,7 +230,10 @@ class TestIngestionPipeline:
 
         try:
             pipeline = IngestionPipeline(settings)
-            pipeline.embedding_model.aget_text_embedding_batch = AsyncMock(return_value=[])
+            # Mock embedding client 返回空结果
+            pipeline._embedding_client.embeddings.create = AsyncMock(
+                return_value=MagicMock(data=[])
+            )
 
             with patch("src.core.rag.ingestion.pipeline.get_milvus"):
                 chunk_count = await pipeline.process(
@@ -263,7 +266,7 @@ class TestRetrievalPipeline:
 
     @pytest.mark.asyncio
     async def test_retriever_with_mock_results(
-        self, settings: Settings, mock_embedding_model: MagicMock, mock_milvus_client: MagicMock
+        self, settings: Settings, mock_milvus_client: MagicMock
     ):
         """测试检索器与 Mock Milvus 的配合
 
@@ -274,8 +277,12 @@ class TestRetrievalPipeline:
 
         retriever = DenseRetriever(
             milvus_client=mock_milvus_client,
-            embedding_model=mock_embedding_model,
             settings=settings,
+        )
+        # Mock embedding client
+        retriever._embedding_client = MagicMock()
+        retriever._embedding_client.embeddings.create = AsyncMock(
+            return_value=MagicMock(data=[MagicMock(embedding=[0.1] * 3072)])
         )
 
         results = await retriever.retrieve(

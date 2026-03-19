@@ -23,11 +23,19 @@ logger = structlog.get_logger()
 router = APIRouter(prefix="/evaluation", tags=["Evaluation"])
 
 
+class TestCaseRequest(BaseModel):
+    """测试用例请求模型 (用于 API 序列化)"""
+    question: str
+    ground_truth: str | None = None
+    generated_answer: str | None = None
+    contexts: list[str] = Field(default_factory=list)
+
+
 class RunEvaluationRequest(BaseModel):
     """运行评估请求"""
     name: str = "manual_evaluation"
     collection: str = "default"
-    test_cases: list[TestCase]
+    test_cases: list[TestCaseRequest]
     run_deepeval: bool = False
 
 
@@ -36,14 +44,6 @@ class GenerateTestsetRequest(BaseModel):
     collection: str = "default"
     count_per_doc: int = 5
     max_docs: int = 10
-
-
-class TestCaseRequest(BaseModel):
-    """测试用例请求模型 (用于 API 序列化)"""
-    question: str
-    ground_truth: str | None = None
-    generated_answer: str | None = None
-    contexts: list[str] = Field(default_factory=list)
 
 
 class RunEvaluationResponse(BaseModel):
