@@ -130,10 +130,10 @@ class TestIngestionPipeline:
             ENV="test",
             RAG_CHUNK_SIZE=100,
             RAG_CHUNK_OVERLAP=20,
-            EMBEDDING_MODEL="text-embedding-3-large",
-            EMBEDDING_DIMENSION=3072,
-            OPENAI_API_KEY="sk-test-key",
-            OPENAI_API_BASE="https://api.openai.com/v1",
+            EMBEDDING_MODEL="text-embedding-v4",
+            EMBEDDING_DIMENSION=1024,
+            DASHSCOPE_API_KEY="sk-test-key",
+            DASHSCOPE_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1",
             MILVUS_COLLECTION_NAME="test_collection",
             MAX_EMBEDDING_CONCURRENT=5,
         )
@@ -256,9 +256,9 @@ class TestRetrievalPipeline:
             RAG_TOP_K=5,
             RAG_SIMILARITY_THRESHOLD=0.7,
             MILVUS_COLLECTION_NAME="test_collection",
-            EMBEDDING_MODEL="text-embedding-3-large",
-            EMBEDDING_DIMENSION=3072,
-            OPENAI_API_KEY="sk-test-key",
+            EMBEDDING_MODEL="text-embedding-v4",
+            EMBEDDING_DIMENSION=1024,
+            DASHSCOPE_API_KEY="sk-test-key",
         )
 
     @pytest.mark.asyncio

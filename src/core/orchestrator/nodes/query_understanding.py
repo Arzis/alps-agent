@@ -61,8 +61,8 @@ class QueryUnderstandingNode:
         self.llm = ChatOpenAI(
             model=settings.PRIMARY_LLM_MODEL,
             temperature=0.0,  # 意图识别不需要创造性
-            api_key=settings.OPENAI_API_KEY.get_secret_value(),
-            base_url=settings.OPENAI_API_BASE,
+            api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
+            base_url=settings.DASHSCOPE_BASE_URL,
             timeout=settings.LLM_TIMEOUT,
         )
 

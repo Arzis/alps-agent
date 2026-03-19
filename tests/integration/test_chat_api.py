@@ -7,6 +7,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from src.api.dependencies import get_orchestrator
+
 
 @pytest.mark.asyncio
 class TestChatAPI:
@@ -63,7 +65,7 @@ class TestChatAPIWithMocks:
                 )
             ],
             confidence=0.85,
-            model_used="gpt-4o-mini",
+            model_used="qwen-max",
             fallback_used=False,
             tokens_used=100,
         )
@@ -71,37 +73,46 @@ class TestChatAPIWithMocks:
         orchestrator.stream = MagicMock(return_value=iter([]))
         return orchestrator
 
-    async def test_chat_request_validation(self, async_client):
+    @pytest.fixture
+    async def client_with_mock_orchestrator(self, async_client, mock_orchestrator):
+        """提供带有 mock orchestrator 的测试客户端"""
+        # 覆盖 orchestrator 依赖
+        async_client.app.dependency_overrides[get_orchestrator] = lambda: mock_orchestrator
+        yield async_client
+        # 清理覆盖
+        async_client.app.dependency_overrides.clear()
+
+    async def test_chat_request_validation(self, client_with_mock_orchestrator):
         """测试请求参数验证
 
         验证:
         - 缺少必需字段返回 422
         """
-        response = await async_client.post(
+        response = await client_with_mock_orchestrator.post(
             "/api/v1/chat/completions",
             json={},  # 缺少 message
         )
         assert response.status_code == 422
 
-    async def test_chat_request_with_empty_message(self, async_client):
+    async def test_chat_request_with_empty_message(self, client_with_mock_orchestrator):
         """测试空消息验证
 
         验证:
         - 空消息返回 422
         """
-        response = await async_client.post(
+        response = await client_with_mock_orchestrator.post(
             "/api/v1/chat/completions",
             json={"message": ""},
         )
         assert response.status_code == 422
 
-    async def test_chat_request_with_valid_message(self, async_client):
+    async def test_chat_request_with_valid_message(self, client_with_mock_orchestrator):
         """测试有效消息
 
         验证:
         - 有效消息格式被接受 (即使后端未启动)
         """
-        response = await async_client.post(
+        response = await client_with_mock_orchestrator.post(
             "/api/v1/chat/completions",
             json={
                 "message": "你好",
@@ -111,13 +122,13 @@ class TestChatAPIWithMocks:
         # 不关心具体状态码，只要不是 422 (验证失败)
         assert response.status_code != 422
 
-    async def test_chat_request_with_session_id(self, async_client):
+    async def test_chat_request_with_session_id(self, client_with_mock_orchestrator):
         """测试带 session_id 的请求
 
         验证:
         - session_id 被正确处理
         """
-        response = await async_client.post(
+        response = await client_with_mock_orchestrator.post(
             "/api/v1/chat/completions",
             json={
                 "message": "继续",
@@ -126,13 +137,13 @@ class TestChatAPIWithMocks:
         )
         assert response.status_code != 422
 
-    async def test_chat_request_with_custom_collection(self, async_client):
+    async def test_chat_request_with_custom_collection(self, client_with_mock_orchestrator):
         """测试自定义 collection
 
         验证:
         - 自定义 collection 被接受
         """
-        response = await async_client.post(
+        response = await client_with_mock_orchestrator.post(
             "/api/v1/chat/completions",
             json={
                 "message": "查询",

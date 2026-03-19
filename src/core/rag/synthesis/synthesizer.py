@@ -65,17 +65,17 @@ class AnswerSynthesizer:
             model=settings.PRIMARY_LLM_MODEL,
             temperature=settings.PRIMARY_LLM_TEMPERATURE,
             max_tokens=settings.PRIMARY_LLM_MAX_TOKENS,
-            api_key=settings.OPENAI_API_KEY.get_secret_value(),
-            base_url=settings.OPENAI_API_BASE,
+            api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
+            base_url=settings.DASHSCOPE_BASE_URL,
             timeout=settings.LLM_TIMEOUT,
         )
 
-        # 降级模型 (用于 Codex 降级回答)
+        # 降级模型 (用于轻量级回答)
         self.fallback_llm = ChatOpenAI(
             model=settings.FALLBACK_LLM_MODEL,
             temperature=settings.FALLBACK_LLM_TEMPERATURE,
-            api_key=settings.OPENAI_API_KEY.get_secret_value(),
-            base_url=settings.OPENAI_API_BASE,
+            api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
+            base_url=settings.DASHSCOPE_BASE_URL,
             timeout=settings.LLM_TIMEOUT,
         )
 

@@ -7,7 +7,7 @@ import asyncio
 from dataclasses import dataclass
 
 import structlog
-from llama_index.embeddings.openai import OpenAIEmbedding
+from openai import AsyncOpenAI
 from pymilvus import MilvusClient
 
 from src.infra.config.settings import Settings
@@ -38,20 +38,24 @@ class DenseRetriever:
     def __init__(
         self,
         milvus_client: MilvusClient,
-        embedding_model: OpenAIEmbedding,
         settings: Settings,
     ):
         """初始化检索器
 
         Args:
             milvus_client: Milvus 客户端实例
-            embedding_model: OpenAI Embedding 模型
             settings: 应用配置
         """
         self.milvus = milvus_client
-        self.embedding = embedding_model
         self.settings = settings
         self.collection_name = settings.MILVUS_COLLECTION_NAME
+        # OpenAI 兼容客户端 (DashScope)
+        self._embedding_client = AsyncOpenAI(
+            api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
+            base_url=settings.DASHSCOPE_BASE_URL,
+        )
+        self._embedding_model = settings.EMBEDDING_MODEL
+        self._embedding_dim = settings.EMBEDDING_DIMENSION
 
     async def retrieve(
         self,
@@ -74,8 +78,14 @@ class DenseRetriever:
         top_k = top_k or self.settings.RAG_TOP_K
         threshold = similarity_threshold or self.settings.RAG_SIMILARITY_THRESHOLD
 
-        # 1. 计算 query 的 embedding
-        query_embedding = await self.embedding.aget_text_embedding(query)
+        # 1. 计算 query 的 embedding (使用 OpenAI 兼容接口)
+        response = await self._embedding_client.embeddings.create(
+            model=self._embedding_model,
+            input=query,
+            dimensions=self._embedding_dim,
+            encoding_format="float",
+        )
+        query_embedding = response.data[0].embedding
 
         # 2. Milvus 向量检索
         results = await asyncio.get_event_loop().run_in_executor(

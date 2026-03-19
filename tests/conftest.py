@@ -12,6 +12,8 @@ from httpx import AsyncClient, ASGITransport
 from llama_index.core import Document
 
 from src.api.main import create_app
+from src.api.dependencies import get_orchestrator
+from src.core.orchestrator.state import OrchestratorResult
 from src.infra.config.settings import Settings
 from src.schemas.chat import MessageRole
 
@@ -47,11 +49,13 @@ def test_settings() -> Settings:
         APP_NAME="Enterprise QA Assistant Test",
         APP_VERSION="0.1.0",
         POSTGRES_DB="qa_assistant_test",
-        # 使用 mock API key，避免测试时需要真实密钥
-        OPENAI_API_KEY="sk-test-mock-key-for-testing-only",
-        OPENAI_API_BASE="https://api.openai.com/v1",
-        PRIMARY_LLM_MODEL="gpt-4o-mini",
-        FALLBACK_LLM_MODEL="gpt-4o-mini",
+        # 使用 DashScope mock API key
+        DASHSCOPE_API_KEY="sk-test-mock-key-for-testing-only",
+        DASHSCOPE_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        PRIMARY_LLM_MODEL="qwen3-vl-flash",
+        FALLBACK_LLM_MODEL="qwen3-vl-flash",
+        EMBEDDING_MODEL="text-embedding-v4",
+        EMBEDDING_DIMENSION=1024,
         REDIS_HOST="localhost",
         REDIS_PORT=6379,
         REDIS_DB=1,  # 使用独立的 Redis DB
@@ -202,11 +206,43 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
 
     使用 ASGITransport 直接连接到 FastAPI 应用实例，
     避免启动真实的 HTTP 服务器。
+
+    返回的 AsyncClient 有以下属性用于测试:
+    - app: FastAPI 应用实例 (用于 dependency_overrides)
     """
     app = create_app()
+
+    # 创建 mock pool - 必须显式设置所有方法，否则 MagicMock 会自动生成新 Mock
+    mock_pool = MagicMock()
+    mock_pool.fetchval = AsyncMock(return_value=0)
+    mock_pool.fetch = AsyncMock(return_value=[])
+    mock_pool.fetchrow = AsyncMock(return_value=None)
+    mock_pool.execute = AsyncMock(return_value=None)
+
+    # 直接 patch postgres 模块中的全局 _pool 变量
+    # 这样 get_postgres_pool() 会直接返回 mock_pool
+    import src.infra.database.postgres as pg_module
+    original_pool = pg_module._pool
+    pg_module._pool = mock_pool
+
+    # Mock orchestrator (ASGITransport 不触发 lifespan，orchestrator 不会初始化)
+    mock_orch = MagicMock()
+    mock_orch.run = AsyncMock(return_value=OrchestratorResult(
+        answer="Mock response",
+        citations=[],
+        confidence=0.9,
+        model_used="mock",
+        fallback_used=False,
+    ))
+    app.dependency_overrides[get_orchestrator] = lambda: mock_orch
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        client.app = app
         yield client
+
+    # 清理: 恢复原始 pool
+    pg_module._pool = original_pool
 
 
 # ============================================================

@@ -9,7 +9,7 @@ from datetime import datetime
 
 import structlog
 from llama_index.core.schema import TextNode
-from llama_index.embeddings.openai import OpenAIEmbedding
+from openai import AsyncOpenAI
 
 from src.core.rag.ingestion.parser import DocumentParser
 from src.core.rag.ingestion.chunker import DocumentChunker
@@ -41,13 +41,13 @@ class IngestionPipeline:
             chunk_size=settings.RAG_CHUNK_SIZE,
             chunk_overlap=settings.RAG_CHUNK_OVERLAP,
         )
-        # Embedding 模型
-        self.embedding_model = OpenAIEmbedding(
-            model=settings.EMBEDDING_MODEL,
-            api_key=settings.OPENAI_API_KEY.get_secret_value(),
-            api_base=settings.OPENAI_API_BASE,
-            dimensions=settings.EMBEDDING_DIMENSION,
+        # OpenAI 兼容客户端 (DashScope)
+        self._embedding_client = AsyncOpenAI(
+            api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
+            base_url=settings.DASHSCOPE_BASE_URL,
         )
+        self._embedding_model = settings.EMBEDDING_MODEL
+        self._embedding_dim = settings.EMBEDDING_DIMENSION
         # 并发控制信号量
         self._embedding_semaphore = asyncio.Semaphore(
             settings.MAX_EMBEDDING_CONCURRENT
@@ -132,9 +132,13 @@ class IngestionPipeline:
 
             # 并发控制
             async with self._embedding_semaphore:
-                batch_embeddings = await self.embedding_model.aget_text_embedding_batch(
-                    texts
+                response = await self._embedding_client.embeddings.create(
+                    model=self._embedding_model,
+                    input=texts,
+                    dimensions=self._embedding_dim,
+                    encoding_format="float",
                 )
+                batch_embeddings = [item.embedding for item in response.data]
                 all_embeddings.extend(batch_embeddings)
 
         return all_embeddings
@@ -175,10 +179,14 @@ class IngestionPipeline:
         batch_size = 100
         for i in range(0, len(data), batch_size):
             batch = data[i : i + batch_size]
-            milvus.upsert(
-                collection_name=collection_name,
-                data=batch,
-            )
+            try:
+                milvus.upsert(
+                    collection_name=collection_name,
+                    data=batch,
+                )
+            except Exception as e:
+                logger.error("milvus_upsert_batch_failed", doc_id=doc_id, batch=i//batch_size, error=str(e), exc_info=True)
+                raise
 
         logger.info(
             "milvus_upserted",

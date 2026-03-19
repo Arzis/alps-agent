@@ -5,6 +5,7 @@
 
 from fastapi import Request
 from src.core.orchestrator.engine import ConversationOrchestrator
+from src.api.middlewares.error_handler import AppError
 
 
 async def get_orchestrator(request: Request) -> ConversationOrchestrator:
@@ -19,11 +20,15 @@ async def get_orchestrator(request: Request) -> ConversationOrchestrator:
         ConversationOrchestrator: 编排引擎实例
 
     Raises:
-        RuntimeError: 如果编排引擎未初始化
+        AppError: 如果编排引擎未初始化 (503 Service Unavailable)
     """
     orchestrator: ConversationOrchestrator | None = getattr(
         request.app.state, "orchestrator", None
     )
     if orchestrator is None:
-        raise RuntimeError("Orchestrator not initialized")
+        raise AppError(
+            message="Orchestrator not initialized - service may be starting up",
+            status_code=503,
+            error_code="SERVICE_UNAVAILABLE",
+        )
     return orchestrator

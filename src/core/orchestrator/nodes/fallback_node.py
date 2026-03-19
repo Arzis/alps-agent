@@ -56,8 +56,8 @@ class FallbackNode:
         self.fallback_llm = ChatOpenAI(
             model=settings.FALLBACK_LLM_MODEL,
             temperature=settings.FALLBACK_LLM_TEMPERATURE,
-            api_key=settings.OPENAI_API_KEY.get_secret_value(),
-            base_url=settings.OPENAI_API_BASE,
+            api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
+            base_url=settings.DASHSCOPE_BASE_URL,
             timeout=settings.LLM_TIMEOUT,
         )
 

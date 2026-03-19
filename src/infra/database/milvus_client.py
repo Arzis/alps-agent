@@ -64,6 +64,9 @@ def _ensure_collection(client: _MilvusClient, settings) -> None:
         schema=schema,
     )
 
+    # 加载 Collection 到内存 (Upsert 后必须 load 才能被查询)
+    client.load_collection(collection_name=collection_name)
+
     # 配置向量索引 (HNSW)
     index_params = client.prepare_index_params()
     index_params.add_index(
@@ -87,12 +90,13 @@ def _ensure_collection(client: _MilvusClient, settings) -> None:
 def get_milvus() -> _MilvusClient:
     """获取 Milvus 客户端实例
 
+    如果客户端未初始化，则重新初始化（支持懒加载）。
+
     Returns:
         _MilvusClient: Milvus 客户端实例
-
-    Raises:
-        RuntimeError: 如果 Milvus 客户端未初始化
     """
+    global _client
     if _client is None:
-        raise RuntimeError("Milvus client not initialized. Call init_milvus() first.")
+        # 懒加载初始化
+        return init_milvus()
     return _client

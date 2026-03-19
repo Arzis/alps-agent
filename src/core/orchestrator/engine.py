@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from typing import AsyncGenerator, Callable
 
 import structlog
-from langchain_openai import OpenAIEmbedding
 
 from src.schemas.chat import CitationItem, ConversationHistory, SessionInfo, ChatMessage, MessageRole
 from src.core.memory.manager import MemoryManager
@@ -309,17 +308,9 @@ async def init_orchestrator(
         settings=settings,
     )
 
-    # 创建 Embedding 模型
-    embedding_model = OpenAIEmbedding(
-        model=settings.EMBEDDING_MODEL,
-        api_key=settings.OPENAI_API_KEY.get_secret_value(),
-        base_url=settings.OPENAI_API_BASE,
-    )
-
-    # 创建 Dense 检索器
+    # 创建 Dense 检索器 (内部使用 OpenAI 兼容接口)
     dense_retriever = DenseRetriever(
         milvus_client=milvus_client,
-        embedding_model=embedding_model,
         settings=settings,
     )
 

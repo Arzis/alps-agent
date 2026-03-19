@@ -156,3 +156,16 @@ class ShortTermMemory:
         key = self._key(session_id)
         await self.redis.delete(key)
         logger.info("session_memory_cleared", session_id=session_id)
+
+    async def exists(self, session_id: str) -> bool:
+        """检查会话是否存在
+
+        Args:
+            session_id: 会话 ID
+
+        Returns:
+            bool: 会话是否存在（是否有消息）
+        """
+        key = self._key(session_id)
+        result = await self.redis.exists(key)
+        return result > 0
