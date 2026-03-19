@@ -45,6 +45,8 @@ class ConversationState:
     history_turns: list[dict] = field(default_factory=list)  # 对话历史
     intent: str = "general"                       # 识别的意图 (general/knowledge/search)
     rewritten_query: str = ""                     # 改写后的查询
+    expanded_queries: list[str] = field(default_factory=list)  # 扩展查询列表 (多路召回用)
+    query_reasoning: str = ""                     # 查询改写推理过程
     retrieved_chunks: list = field(default_factory=list)       # RAG 检索结果
     rag_answer: str = ""                          # RAG 回答
     confidence: float = 0.0                       # 置信度
