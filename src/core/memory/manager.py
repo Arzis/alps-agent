@@ -34,7 +34,7 @@ class MemoryManager:
         )
 
     async def load_context(
-        self, session_id: str, max_turns: int = 5
+        self, session_id: str, user_id: str | None = None, max_turns: int = 5
     ) -> list[dict[str, str]]:
         """
         加载对话上下文
@@ -44,18 +44,20 @@ class MemoryManager:
 
         Args:
             session_id: 会话 ID
+            user_id: 用户 ID (用于隔离)
             max_turns: 最大加载的对话轮数 (每轮=用户+助手)
 
         Returns:
             list[dict]: 格式化的消息列表，格式: [{"role": "user", "content": "..."}]
         """
         return await self.short_term.get_formatted_history(
-            session_id, last_n_turns=max_turns
+            session_id, user_id=user_id, last_n_turns=max_turns
         )
 
     async def save_turn(
         self,
         session_id: str,
+        user_id: str | None,
         user_message: str,
         assistant_message: str,
         metadata: dict | None = None,
@@ -65,22 +67,25 @@ class MemoryManager:
 
         Args:
             session_id: 会话 ID
+            user_id: 用户 ID (用于隔离)
             user_message: 用户消息
             assistant_message: 助手回复
             metadata: 额外元数据 (如置信度、使用的模型等)
         """
         await self.short_term.add_exchange(
             session_id=session_id,
+            user_id=user_id,
             user_message=user_message,
             assistant_message=assistant_message,
             metadata=metadata,
         )
 
-    async def clear_session(self, session_id: str) -> None:
+    async def clear_session(self, session_id: str, user_id: str | None = None) -> None:
         """
         清除会话记忆
 
         Args:
             session_id: 会话 ID
+            user_id: 用户 ID (用于隔离)
         """
-        await self.short_term.clear(session_id)
+        await self.short_term.clear(session_id, user_id=user_id)

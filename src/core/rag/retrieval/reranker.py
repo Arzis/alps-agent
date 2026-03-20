@@ -128,7 +128,7 @@ class LLMReranker(BaseReranker):
         """初始化 LLM 重排器
 
         Args:
-            llm: LLM 实例，默认使用 DashScope GPT-4o-mini
+            llm: LLM 实例，默认使用 FALLBACK_LLM_MODEL
         """
         try:
             from langchain_openai import ChatOpenAI
@@ -136,7 +136,7 @@ class LLMReranker(BaseReranker):
 
             settings = get_settings()
             self.llm = llm or ChatOpenAI(
-                model="gpt-4o-mini",
+                model=settings.FALLBACK_LLM_MODEL,
                 temperature=0.0,
                 api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
                 base_url=settings.DASHSCOPE_BASE_URL,

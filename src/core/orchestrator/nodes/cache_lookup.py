@@ -76,12 +76,12 @@ def should_skip_rag(state: ConversationState) -> str:
         str: 路由目标节点标识
     """
     # 缓存命中 → 跳过 RAG, 直接结束
-    if state.get("cache_hit", False):
+    if getattr(state, "cache_hit", False):
         return "skip_to_end"
 
     # 闲聊意图 → Codex (不经过 RAG)
-    intent = state.get("intent", "general")
-    if intent in ("chitchat", "general"):
+    intent = getattr(state, "intent", "knowledge_qa")
+    if intent in ("chitchat", "unclear"):
         return "codex_fallback"
 
     # 知识问答 → RAG Agent

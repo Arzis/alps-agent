@@ -112,6 +112,55 @@ async def verify_postgres() -> bool:
         return False
 
 
+async def init_postgres_tables() -> None:
+    """初始化 PostgreSQL 表结构"""
+    settings = get_settings()
+    try:
+        conn = await asyncpg.connect(settings.POSTGRES_URL)
+
+        # 创建 users 表 (如果不存在)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id VARCHAR(64) PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                hashed_password VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+        # 创建索引
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
+        """)
+
+        # 创建会话表 (如果不存在)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                session_id VARCHAR(64) PRIMARY KEY,
+                user_id VARCHAR(64) NOT NULL,
+                title VARCHAR(500),
+                message_count INTEGER DEFAULT 0,
+                status VARCHAR(50) DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+        # 创建索引
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id)
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated_at ON chat_sessions(updated_at DESC)
+        """)
+
+        await conn.close()
+        logger.info("postgres_tables_initialized")
+    except Exception as e:
+        logger.error("postgres_tables_init_failed", error=str(e))
+        raise
+
+
 async def verify_redis() -> bool:
     """验证 Redis 连接"""
     settings = get_settings()
@@ -153,6 +202,9 @@ async def verify_milvus() -> bool:
 async def main() -> None:
     """主初始化函数 - 初始化 Milvus 并验证所有数据库连接"""
     logger.info("starting_database_initialization")
+
+    # 初始化 PostgreSQL 表结构
+    await init_postgres_tables()
 
     # 初始化 Milvus Collection
     await init_milvus()

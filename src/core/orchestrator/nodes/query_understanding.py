@@ -84,7 +84,7 @@ class QueryUnderstandingNode:
         """
         self.settings = settings
         self.llm = ChatOpenAI(
-            model=settings.PRIMARY_LLM_MODEL,
+            model=settings.FALLBACK_LLM_MODEL,
             temperature=0.0,
             api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
             base_url=settings.DASHSCOPE_BASE_URL,

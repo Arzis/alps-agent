@@ -123,14 +123,14 @@ class RagasEvaluator:
         from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
         self.llm = ChatOpenAI(
-            model="gpt-4o-mini",
+            model=settings.FALLBACK_LLM_MODEL,
             api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
             base_url=settings.DASHSCOPE_BASE_URL,
         )
         self.embeddings = OpenAIEmbeddings(
-            model=settings.EMBEDDING_MODEL,
-            api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
-            base_url=settings.DASHSCOPE_BASE_URL,
+            model=settings.ACTIVE_EMBEDDING_MODEL,
+            api_key=settings.EMBEDDING_API_KEY,
+            base_url=settings.EMBEDDING_BASE_URL,
         )
 
     async def evaluate_batch(
@@ -235,7 +235,7 @@ class RagasEvaluator:
                 per_sample_metrics=per_sample,
                 config={
                     "metrics": [m.name for m in selected_metrics],
-                    "llm_model": "gpt-4o-mini",
+                    "llm_model": settings.FALLBACK_LLM_MODEL,
                 },
             )
 

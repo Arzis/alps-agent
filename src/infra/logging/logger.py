@@ -24,8 +24,8 @@ def configure_logging() -> None:
 
     settings = get_settings()
 
-    # 根据调试模式确定日志级别
-    log_level = logging.DEBUG if settings.DEBUG else logging.INFO
+    # 根据 LOG_LEVEL 配置确定日志级别 (支持 DEBUG / INFO / WARNING / ERROR)
+    log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
 
     # 共享处理器列表 (用于 stdlib 和 structlog)
     shared_processors: list[Processor] = [
@@ -43,7 +43,8 @@ def configure_logging() -> None:
         processors=shared_processors
         + [
             structlog.processors.format_exc_info,    # 格式化异常信息
-            structlog.processors.JSONRenderer(),      # JSON 格式输出
+            # structlog.processors.JSONRenderer(),  # JSON 格式输出
+            structlog.dev.ConsoleRenderer(),          # 开发环境易读格式
         ],
         wrapper_class=structlog.stdlib.BoundLogger,  # 包装器类
         context_class=dict,                           # 上下文类

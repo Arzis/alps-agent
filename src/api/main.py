@@ -14,7 +14,7 @@ from src.infra.database.milvus_client import init_milvus
 from src.infra.logging.logger import configure_logging
 from src.api.middlewares.error_handler import register_exception_handlers
 from src.api.middlewares.logging_middleware import RequestLoggingMiddleware
-from src.api.routers import chat, documents, health, evaluation
+from src.api.routers import auth, chat, documents, health, evaluation
 
 import structlog
 
@@ -46,6 +46,7 @@ async def lifespan(app: FastAPI):
 
     # 初始化 PostgreSQL 连接池
     pg_pool = await init_postgres_pool()
+    app.state.pg_pool = pg_pool  # 存储到 app.state 供依赖使用
     logger.info("postgres_connected", pool_size=settings.POSTGRES_POOL_MAX)
 
     # 初始化 Redis 客户端
@@ -135,6 +136,8 @@ def create_app() -> FastAPI:
     # ============================================================
     # 健康检查路由 (无前缀)
     app.include_router(health.router)
+    # Auth 路由 (带 /api/v1 前缀)
+    app.include_router(auth.router, prefix=settings.API_PREFIX)
     # Chat 路由 (带 /api/v1 前缀)
     app.include_router(chat.router, prefix=settings.API_PREFIX)
     # Documents 路由 (带 /api/v1 前缀)

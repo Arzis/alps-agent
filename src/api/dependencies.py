@@ -1,6 +1,6 @@
 """FastAPI 依赖注入模块
 
-提供全局依赖的注入函数，如编排引擎实例。
+提供全局依赖的注入函数，如编排引擎实例、数据库连接池等。
 """
 
 from fastapi import Request
@@ -32,3 +32,24 @@ async def get_orchestrator(request: Request) -> ConversationOrchestrator:
             error_code="SERVICE_UNAVAILABLE",
         )
     return orchestrator
+
+
+async def get_pg_pool(request: Request):
+    """获取 PostgreSQL 连接池
+
+    从 FastAPI 应用的 app.state 中获取 PostgreSQL 连接池。
+
+    Args:
+        request: FastAPI 请求对象
+
+    Returns:
+        asyncpg.Pool: PostgreSQL 连接池
+    """
+    pg_pool = getattr(request.app.state, "pg_pool", None)
+    if pg_pool is None:
+        raise AppError(
+            message="PostgreSQL pool not initialized",
+            status_code=503,
+            error_code="DATABASE_UNAVAILABLE",
+        )
+    return pg_pool

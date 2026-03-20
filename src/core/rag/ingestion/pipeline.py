@@ -10,13 +10,13 @@ from datetime import datetime
 import structlog
 from llama_index.core.schema import TextNode
 from llama_index.embeddings.openai import OpenAIEmbedding
-from openai import AsyncOpenAI
 
 from src.core.rag.ingestion.parser import DocumentParser
 from src.core.rag.ingestion.chunker import DocumentChunker, ChunkerConfig, ChunkingStrategy
 from src.core.rag.ingestion.metadata_extractor import MetadataExtractor
 from src.infra.config.settings import Settings, get_settings
 from src.infra.database.milvus_client import get_milvus
+from src.infra.embedding.provider import BaseEmbeddingProvider, create_embedding_provider
 
 logger = structlog.get_logger()
 
@@ -39,6 +39,7 @@ class IngestionPipeline:
     def __init__(
         self,
         settings: Settings,
+        embedding_provider: BaseEmbeddingProvider | None = None,
         chunker: DocumentChunker | None = None,
         enable_metadata_extraction: bool = True,
     ):
@@ -46,11 +47,17 @@ class IngestionPipeline:
 
         Args:
             settings: 应用配置
+            embedding_provider: Embedding provider 实例 (默认自动创建)
             chunker: 文档分块器 (默认自动创建)
             enable_metadata_extraction: 是否启用元数据提取
         """
         self.settings = settings
         self.parser = DocumentParser()
+
+        # Embedding Provider
+        if embedding_provider is None:
+            embedding_provider = create_embedding_provider(settings)
+        self._provider = embedding_provider
 
         # 分块器
         if chunker:
@@ -72,14 +79,6 @@ class IngestionPipeline:
         if enable_metadata_extraction:
             self.metadata_extractor = MetadataExtractor()
 
-        # OpenAI 兼容客户端 (DashScope)
-        self._embedding_client = AsyncOpenAI(
-            api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
-            base_url=settings.DASHSCOPE_BASE_URL,
-        )
-        self._embedding_model = settings.EMBEDDING_MODEL
-        self._embedding_dim = settings.EMBEDDING_DIMENSION
-
         # 并发控制信号量
         self._embedding_semaphore = asyncio.Semaphore(
             settings.MAX_EMBEDDING_CONCURRENT
@@ -89,10 +88,10 @@ class IngestionPipeline:
         """创建用于语义分块的Embedding模型"""
         try:
             return OpenAIEmbedding(
-                model=self.settings.EMBEDDING_MODEL,
-                api_key=self.settings.DASHSCOPE_API_KEY.get_secret_value(),
-                api_base=self.settings.DASHSCOPE_BASE_URL,
-                dimensions=self.settings.EMBEDDING_DIMENSION,
+                model=self._provider.model,
+                api_key=self.settings.EMBEDDING_API_KEY,
+                api_base=self.settings.EMBEDDING_BASE_URL,
+                dimensions=self._provider.dimension,
             )
         except Exception as e:
             logger.warning("embedding_model_creation_failed", error=str(e))
@@ -198,7 +197,8 @@ class IngestionPipeline:
         all_embeddings = []
 
         for i in range(0, len(nodes), batch_size):
-            batch = nodes[i : i + batch_size]
+            # 批量大小不超过 10
+            batch = nodes[i : i + min(batch_size, 10)]
             # 使用增强文本(如果有 _enriched_text 的话)
             texts = [
                 node.metadata.get("_enriched_text", node.text)
@@ -207,13 +207,7 @@ class IngestionPipeline:
 
             # 并发控制
             async with self._embedding_semaphore:
-                response = await self._embedding_client.embeddings.create(
-                    model=self._embedding_model,
-                    input=texts,
-                    dimensions=self._embedding_dim,
-                    encoding_format="float",
-                )
-                batch_embeddings = [item.embedding for item in response.data]
+                batch_embeddings = await self._provider.embed(texts)
                 all_embeddings.extend(batch_embeddings)
 
         return all_embeddings
@@ -239,7 +233,7 @@ class IngestionPipeline:
         # 准备数据
         data = []
         for node, embedding in zip(nodes, embeddings):
-            data.append({
+            record = {
                 "id": node.id_,  # 格式: "{doc_id}_chunk_{i:04d}"
                 "doc_id": doc_id,
                 "chunk_index": node.metadata.get("chunk_index", 0),
@@ -248,11 +242,11 @@ class IngestionPipeline:
                 "doc_title": node.metadata.get("source", ""),
                 "collection": collection,
                 "created_at": int(datetime.utcnow().timestamp()),
-                # Phase 2 新增元数据字段
-                "extracted_title": node.metadata.get("extracted_title", ""),
-                "extracted_keywords": node.metadata.get("extracted_keywords", ""),
-                "extracted_summary": node.metadata.get("extracted_summary", ""),
-            })
+            }
+            # 只添加已定义的字段（Milvus schema 必须匹配）
+            # 如果 Milvus collection 开启了 dynamic field，可以添加额外字段
+            # 但目前只使用预定义的字段
+            data.append(record)
 
         # 批量写入 (每批 100 条)
         batch_size = 100
@@ -367,13 +361,21 @@ class IngestionPipeline:
             )
 
 
-def get_ingestion_pipeline() -> IngestionPipeline:
+def get_ingestion_pipeline(
+    embedding_provider: BaseEmbeddingProvider | None = None,
+) -> IngestionPipeline:
     """获取摄取管道实例 (单例)
+
+    Args:
+        embedding_provider: Embedding provider 实例 (可选，默认自动创建)
 
     Returns:
         IngestionPipeline: 摄取管道实例
     """
     global _pipeline
-    if _pipeline is None:
-        _pipeline = IngestionPipeline(get_settings())
+    if _pipeline is None or embedding_provider is not None:
+        _pipeline = IngestionPipeline(
+            get_settings(),
+            embedding_provider=embedding_provider,
+        )
     return _pipeline

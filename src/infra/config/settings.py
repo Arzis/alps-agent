@@ -1,7 +1,7 @@
 """全局配置 - 从环境变量 / .env 文件加载"""
 
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -39,17 +39,26 @@ class Settings(BaseSettings):
     DASHSCOPE_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"  # DashScope API 地址
 
     # 主力模型配置 (用于复杂推理和高质量回答)
-    PRIMARY_LLM_MODEL: str = "qwen-max"                     # 主力模型名称 (qwen-max / qwen-plus)
+    PRIMARY_LLM_MODEL: str = "qwen3.5-plus"                     # 主力模型名称 (qwen-max / qwen-plus)
     PRIMARY_LLM_TEMPERATURE: float = 0.1                  # 温度参数 (低=确定性，高=创造性)
-    PRIMARY_LLM_MAX_TOKENS: int = 4096                     # 最大生成 token 数
+    # PRIMARY_LLM_MAX_TOKENS: int = 4096                     # 最大生成 token 数
 
     # 降级模型配置 (用于简单查询和降级兜底)
-    FALLBACK_LLM_MODEL: str = "qwen3-vl-flash"             # 降级模型名称 (qwen3-vl-flash / qwen3-flash)
+    FALLBACK_LLM_MODEL: str = "qwen-flash"             # 降级模型名称 (qwen3-vl-flash / qwen3-flash)
     FALLBACK_LLM_TEMPERATURE: float = 0.0                  # 降级模型温度
 
     # Embedding 模型配置 (用于文档向量嵌入)
     EMBEDDING_MODEL: str = "text-embedding-v4"              # Embedding 模型名称 (text-embedding-v4)
     EMBEDDING_DIMENSION: int = 1024                        # Embedding 向量维度 (v4 为 1024)
+
+    # === Embedding Provider 配置 ===
+    EMBEDDING_PROVIDER: Literal["dashscope", "ollama"] = "dashscope"  # 当前使用的 provider
+
+    # === Ollama 本地 Embedding 配置 ===
+    OLLAMA_BASE_URL: str = "http://localhost:11434/v1"    # Ollama OpenAI 兼容端点
+    OLLAMA_API_KEY: str = "ollama"                         # Ollama 不需要真实 key
+    OLLAMA_EMBEDDING_MODEL: str = "quentinz/bge-large-zh-v1.5"    # Ollama embedding 模型
+    OLLAMA_EMBEDDING_DIMENSION: int = 1024                # Ollama bge-large-zh-v1.5 维度
 
     # === PostgreSQL 配置 (结构化数据存储) ===
     POSTGRES_HOST: str = "localhost"    # 数据库主机地址
@@ -152,9 +161,43 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"   # 日志级别: DEBUG / INFO / WARNING / ERROR
     LOG_FORMAT: str = "json"  # 日志格式: json / console
 
+    # === JWT 认证配置 ===
+    SECRET_KEY: str = "your-secret-key-change-in-production"  # JWT 签名密钥
+    ALGORITHM: str = "HS256"  # JWT 算法
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # Token 过期时间 (24小时)
+
     # === 文件上传配置 ===
     UPLOAD_ALLOWED_EXTENSIONS: set[str] = {".pdf", ".docx", ".md", ".txt"}  # 允许的文件类型
     MAX_UPLOAD_SIZE_MB: int = 50  # 最大上传文件大小 (MB)
+
+    # === Embedding Provider 统一访问入口 ===
+    @property
+    def EMBEDDING_BASE_URL(self) -> str:
+        """获取当前 Embedding provider 的 base URL"""
+        if self.EMBEDDING_PROVIDER == "ollama":
+            return self.OLLAMA_BASE_URL
+        return self.DASHSCOPE_BASE_URL
+
+    @property
+    def EMBEDDING_API_KEY(self) -> str:
+        """获取当前 Embedding provider 的 API key"""
+        if self.EMBEDDING_PROVIDER == "ollama":
+            return self.OLLAMA_API_KEY
+        return self.DASHSCOPE_API_KEY.get_secret_value()
+
+    @property
+    def ACTIVE_EMBEDDING_MODEL(self) -> str:
+        """获取当前 Embedding provider 使用的模型名称"""
+        if self.EMBEDDING_PROVIDER == "ollama":
+            return self.OLLAMA_EMBEDDING_MODEL
+        return self.EMBEDDING_MODEL
+
+    @property
+    def ACTIVE_EMBEDDING_DIMENSION(self) -> int:
+        """获取当前 Embedding provider 使用的向量维度"""
+        if self.EMBEDDING_PROVIDER == "ollama":
+            return self.OLLAMA_EMBEDDING_DIMENSION
+        return self.EMBEDDING_DIMENSION
 
 
 @lru_cache

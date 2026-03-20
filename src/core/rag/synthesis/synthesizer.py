@@ -4,7 +4,7 @@
 """
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import structlog
 from langchain_openai import ChatOpenAI
@@ -64,7 +64,7 @@ class AnswerSynthesizer:
         self.primary_llm = ChatOpenAI(
             model=settings.PRIMARY_LLM_MODEL,
             temperature=settings.PRIMARY_LLM_TEMPERATURE,
-            max_tokens=settings.PRIMARY_LLM_MAX_TOKENS,
+            max_tokens=None,  # 不限制输出 token
             api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
             base_url=settings.DASHSCOPE_BASE_URL,
             timeout=settings.LLM_TIMEOUT,
@@ -146,6 +146,66 @@ class AnswerSynthesizer:
             model_used=model_used,
             tokens_used=tokens_used,
         )
+
+    async def synthesize_stream(
+        self,
+        query: str,
+        retrieved_chunks: list[RetrievedChunk],
+        conversation_history: list[dict] | None = None,
+    ) -> AsyncGenerator[tuple[str, SynthesisResult], None]:
+        """流式合成答案
+
+        Args:
+            query: 用户问题
+            retrieved_chunks: 检索到的文档块列表
+            conversation_history: 对话历史 (可选)
+
+        Yields:
+            tuple[str, SynthesisResult]: (增量 token, 完整结果)
+        """
+        # 构建上下文
+        context = self._build_context(retrieved_chunks)
+
+        # 构建消息
+        messages = []
+
+        # System prompt
+        messages.append(
+            SystemMessage(content=RAG_SYSTEM_PROMPT.format(context=context))
+        )
+
+        # 历史对话 (多轮上下文)
+        if conversation_history:
+            for msg in conversation_history[-6:]:  # 最近 3 轮
+                if msg["role"] == "user":
+                    messages.append(HumanMessage(content=msg["content"]))
+                else:
+                    messages.append(AIMessage(content=msg["content"]))
+
+        # 当前问题
+        messages.append(
+            HumanMessage(content=RAG_USER_PROMPT.format(question=query))
+        )
+
+        # 提取引用
+        citations = self._extract_citations(retrieved_chunks)
+
+        # 流式调用 LLM
+        try:
+            full_answer = ""
+            async for chunk in self.primary_llm.astream(messages):
+                if chunk.content:
+                    full_answer += chunk.content
+                    # 估算 token（按字符粗略估算）
+                    yield chunk.content, SynthesisResult(
+                        answer=full_answer,
+                        citations=citations,
+                        model_used=self.settings.PRIMARY_LLM_MODEL,
+                        tokens_used=len(full_answer) // 4,  # 粗略估算
+                    )
+        except Exception as e:
+            logger.error("primary_llm_stream_failed", error=str(e))
+            raise
 
     @retry(
         stop=stop_after_attempt(3),

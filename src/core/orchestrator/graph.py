@@ -63,41 +63,47 @@ def create_conversation_graph(
     # 创建状态图
     graph = StateGraph(ConversationState)
 
-    # === 注册节点 ===
+    # === 注册节点 (asyncio=True 启用异步节点) ===
     # 查询理解
     graph.add_node(
         "query_understanding",
-        lambda state: query_understanding_node.execute(state)
+        query_understanding_node.execute,
+        asyncio=True,
     )
 
     # 缓存查询
     graph.add_node(
         "cache_lookup",
-        lambda state: cache_lookup_node.execute(state)
+        cache_lookup_node.execute,
+        asyncio=True,
     )
 
     # RAG Agent
     graph.add_node(
         "rag_agent",
-        lambda state: rag_agent_node.execute(state)
+        rag_agent_node.execute,
+        asyncio=True,
     )
 
     # 降级兜底
     graph.add_node(
         "fallback",
-        lambda state: fallback_node.execute(state)
+        fallback_node.execute,
+        asyncio=True,
     )
 
     # 质量门禁
     graph.add_node(
         "quality_gate",
-        lambda state: quality_gate_node.execute(state)
+        quality_gate_node.execute,
+        asyncio=True,
     )
 
     # 响应合成
     graph.add_node(
         "response_synthesizer",
-        lambda state: response_synthesizer_node.execute(state)
+        response_synthesizer_node.execute,
+        asyncio=True,
     )
 
     # === 定义边 ===

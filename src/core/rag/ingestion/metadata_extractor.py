@@ -64,12 +64,12 @@ class MetadataExtractor:
         """初始化元数据提取器
 
         Args:
-            llm: LLM客户端 (默认使用gpt-4o-mini以控制成本)
+            llm: LLM客户端 (默认使用 FALLBACK_LLM_MODEL)
             batch_size: 批处理大小 (当前未使用，保留接口)
         """
         settings = get_settings()
         self.llm = llm or ChatOpenAI(
-            model="gpt-4o-mini",  # 用轻量模型降低成本
+            model=settings.FALLBACK_LLM_MODEL,
             temperature=0.0,
             api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
             base_url=settings.DASHSCOPE_BASE_URL,

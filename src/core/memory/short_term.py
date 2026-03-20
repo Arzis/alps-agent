@@ -34,15 +34,18 @@ class ShortTermMemory:
         self.ttl = ttl
         self.max_messages = max_messages
 
-    def _key(self, session_id: str) -> str:
+    def _key(self, session_id: str, user_id: str | None = None) -> str:
         """生成 Redis 键名
 
         Args:
             session_id: 会话 ID
+            user_id: 用户 ID (可选，用于隔离)
 
         Returns:
-            str: Redis 键名，格式: memory:short:{session_id}
+            str: Redis 键名，格式: memory:short:{user_id}:{session_id}
         """
+        if user_id:
+            return f"memory:short:{user_id}:{session_id}"
         return f"memory:short:{session_id}"
 
     async def add_message(
@@ -51,6 +54,7 @@ class ShortTermMemory:
         role: MessageRole,
         content: str,
         metadata: dict | None = None,
+        user_id: str | None = None,
     ) -> None:
         """添加一条消息到会话历史
 
@@ -59,8 +63,9 @@ class ShortTermMemory:
             role: 消息角色 (user/assistant/system)
             content: 消息内容
             metadata: 额外元数据 (可选)
+            user_id: 用户 ID (可选，用于隔离)
         """
-        key = self._key(session_id)
+        key = self._key(session_id, user_id)
         message = ChatMessage(
             role=role,
             content=content,
@@ -85,6 +90,7 @@ class ShortTermMemory:
         user_message: str,
         assistant_message: str,
         metadata: dict | None = None,
+        user_id: str | None = None,
     ) -> None:
         """添加一轮完整对话 (用户消息 + 助手回复)
 
@@ -93,27 +99,29 @@ class ShortTermMemory:
             user_message: 用户消息内容
             assistant_message: 助手回复内容
             metadata: 额外元数据 (可选)
+            user_id: 用户 ID (可选，用于隔离)
         """
         # 先添加用户消息
-        await self.add_message(session_id, MessageRole.USER, user_message)
+        await self.add_message(session_id, MessageRole.USER, user_message, user_id=user_id)
         # 再添加助手回复
         await self.add_message(
-            session_id, MessageRole.ASSISTANT, assistant_message, metadata
+            session_id, MessageRole.ASSISTANT, assistant_message, metadata, user_id=user_id
         )
 
     async def get_messages(
-        self, session_id: str, last_n: int | None = None
+        self, session_id: str, user_id: str | None = None, last_n: int | None = None
     ) -> list[ChatMessage]:
         """获取会话消息
 
         Args:
             session_id: 会话 ID
+            user_id: 用户 ID (可选，用于隔离)
             last_n: 只获取最后 N 条消息 (可选，None 表示获取全部)
 
         Returns:
             list[ChatMessage]: 消息列表
         """
-        key = self._key(session_id)
+        key = self._key(session_id, user_id)
 
         if last_n:
             # 获取最后 N 条消息 (从末尾往前数)
@@ -126,12 +134,13 @@ class ShortTermMemory:
         return [ChatMessage.model_validate_json(raw) for raw in raw_messages]
 
     async def get_formatted_history(
-        self, session_id: str, last_n_turns: int | None = None
+        self, session_id: str, user_id: str | None = None, last_n_turns: int | None = None
     ) -> list[dict[str, str]]:
         """获取格式化的对话历史 (用于 LLM 上下文)
 
         Args:
             session_id: 会话 ID
+            user_id: 用户 ID (可选，用于隔离)
             last_n_turns: 只获取最后 N 轮对话 (每轮 = 用户+助手)
 
         Returns:
@@ -140,32 +149,34 @@ class ShortTermMemory:
         # 每轮对话 = 2 条消息 (user + assistant)
         # 如果指定 last_n_turns，则获取 last_n_turns * 2 条消息
         last_n = last_n_turns * 2 if last_n_turns else None
-        messages = await self.get_messages(session_id, last_n=last_n)
+        messages = await self.get_messages(session_id, user_id=user_id, last_n=last_n)
 
         return [
             {"role": msg.role.value, "content": msg.content}
             for msg in messages
         ]
 
-    async def clear(self, session_id: str) -> None:
+    async def clear(self, session_id: str, user_id: str | None = None) -> None:
         """清除会话的所有记忆
 
         Args:
             session_id: 会话 ID
+            user_id: 用户 ID (可选，用于隔离)
         """
-        key = self._key(session_id)
+        key = self._key(session_id, user_id)
         await self.redis.delete(key)
-        logger.info("session_memory_cleared", session_id=session_id)
+        logger.info("session_memory_cleared", user_id=user_id, session_id=session_id)
 
-    async def exists(self, session_id: str) -> bool:
+    async def exists(self, session_id: str, user_id: str | None = None) -> bool:
         """检查会话是否存在
 
         Args:
             session_id: 会话 ID
+            user_id: 用户 ID (可选，用于隔离)
 
         Returns:
             bool: 会话是否存在（是否有消息）
         """
-        key = self._key(session_id)
+        key = self._key(session_id, user_id)
         result = await self.redis.exists(key)
         return result > 0

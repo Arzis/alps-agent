@@ -459,12 +459,41 @@ make check
 
 ## 6. 常用命令
 
+### 6.1 Conda 环境
+
+**conda 主程序**: `E:\ProgramData\miniconda3\Scripts\conda.exe`
+**项目 conda 环境**: `D:\envs\alps-agent`
+
 ```bash
+# 激活 conda 环境
+"E:\ProgramData\miniconda3\Scripts\conda.exe" activate D:\envs\alps-agent
+
+# 查看环境信息
+"E:\ProgramData\miniconda3\Scripts\conda.exe" info
+
+# 检查已安装的包
+"E:\ProgramData\miniconda3\Scripts\conda.exe" list -n D:\envs\alps-agent
+```
+
+### 6.2 开发命令
+
+```bash
+# 激活 conda 环境 (在 Windows CMD 或 PowerShell)
+call E:\ProgramData\miniconda3\Scripts\conda.exe activate D:\envs\alps-agent
+
+# 或者直接使用环境中的 Python
+D:\envs\alps-agent\python.exe -m uvicorn
+
+# 测试 (直接使用环境中的 pytest)
+D:\envs\alps-agent\Scripts\pytest.exe
+
 # 环境搭建
 make setup          # 安装依赖 (poetry install)
 
 # 开发运行
-make dev            # 开发模式启动 (poetry run uvicorn)
+make dev            # 开发模式启动
+
+# Docker 服务
 make up             # 启动 Docker 服务
 make down           # 停止 Docker 服务
 make logs           # 查看 Docker 日志
@@ -549,7 +578,7 @@ docker compose -f docker/docker-compose.yml restart
 
 ```python
 # PostgreSQL 连接测试
-poetry run python -c "
+D:\envs\alps-agent\python.exe -c "
 import asyncpg
 import os
 async def test():
@@ -568,7 +597,7 @@ import asyncio; asyncio.run(test())
 
 ```python
 # Milvus 连接测试
-poetry run python -c "
+D:\envs\alps-agent\python.exe -c "
 from pymilvus import MilvusClient
 client = MilvusClient(uri='http://localhost:19530')
 print(client.list_collections())

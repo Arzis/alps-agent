@@ -4,6 +4,8 @@
 """
 
 import time
+import json
+import asyncio
 from dataclasses import dataclass, field
 from typing import AsyncGenerator, Callable
 
@@ -25,6 +27,7 @@ from src.core.rag.synthesis.synthesizer import AnswerSynthesizer
 from src.infra.cache.cache_manager import CacheManager
 from src.infra.cache.semantic_cache import SemanticCache
 from src.infra.config.settings import Settings
+from src.infra.embedding.provider import create_embedding_provider
 
 logger = structlog.get_logger()
 
@@ -97,6 +100,7 @@ class ConversationOrchestrator:
         session_id: str,
         message: str,
         collection: str = "default",
+        user_id: str | None = None,
     ) -> OrchestratorResult:
         """
         执行一轮对话 (同步模式)
@@ -107,6 +111,7 @@ class ConversationOrchestrator:
             session_id: 会话 ID
             message: 用户消息
             collection: 知识库集合
+            user_id: 用户 ID (用于隔离)
 
         Returns:
             OrchestratorResult: 包含回答结果的 OrchestratorResult
@@ -119,7 +124,7 @@ class ConversationOrchestrator:
             trace_ctx = self.tracer.create_trace(
                 session_id=session_id,
                 name="chat_completion",
-                metadata={"collection": collection, "query": message[:200]},
+                metadata={"user_id": user_id, "collection": collection, "query": message[:200]},
             )
 
         try:
@@ -127,13 +132,14 @@ class ConversationOrchestrator:
             if trace_ctx:
                 history_span = trace_ctx.span(name="load_memory")
 
-            history = await self.memory.load_context(session_id, max_turns=5)
+            history = await self.memory.load_context(session_id, user_id=user_id, max_turns=5)
 
             if trace_ctx:
                 history_span.end()
 
             logger.info(
                 "orchestrator_run",
+                user_id=user_id,
                 session_id=session_id,
                 message_length=len(message),
                 history_turns=len(history) // 2,
@@ -179,6 +185,7 @@ class ConversationOrchestrator:
             # 保存对话到记忆
             await self.memory.save_turn(
                 session_id=session_id,
+                user_id=user_id,
                 user_message=message,
                 assistant_message=result.answer,
                 metadata={
@@ -187,6 +194,13 @@ class ConversationOrchestrator:
                     "model_used": result.model_used,
                     "fallback_used": result.fallback_used,
                 },
+            )
+
+            # 更新会话表
+            await self._upsert_session(
+                session_id=session_id,
+                user_id=user_id,
+                title=message[:50] if not None else None,  # 用第一轮用户消息作为标题
             )
 
             # 计算延迟
@@ -231,27 +245,26 @@ class ConversationOrchestrator:
         session_id: str,
         message: str,
         collection: str = "default",
+        user_id: str | None = None,
     ) -> AsyncGenerator[StreamEvent, None]:
         """
         执行一轮对话 (流式模式)
 
-        注意：当前实现为同步执行后流式返回。
-        完整流式支持需要 LangGraph 的流式 API。
+        当前实现：先完整执行，再逐 token 流式返回。
+        真正的 LLM 流式输出需要修改 synthesizer 使用 astream。
 
         Args:
             session_id: 会话 ID
             message: 用户消息
             collection: 知识库集合
+            user_id: 用户 ID (用于隔离)
 
         Yields:
             StreamEvent: 流式事件
         """
-        # 发送处理中状态
-        yield StreamEvent(event="status", data='"processing"')
-
         try:
             # 同步执行获取结果
-            result = await self.run(session_id, message, collection)
+            result = await self.run(session_id, message, collection, user_id)
 
             # 发送引用事件
             if result.citations:
@@ -266,46 +279,50 @@ class ConversationOrchestrator:
                 ]
                 yield StreamEvent(
                     event="citation",
-                    data=str(citations_data),
+                    data=json.dumps(citations_data),
                 )
 
-            # 发送 token 事件
+            # 逐 token 流式返回（模拟流式效果）
             for i in range(0, len(result.answer), 10):
                 yield StreamEvent(
                     event="token",
-                    data=f'"{result.answer[i:i+10]}"',
+                    data=json.dumps(result.answer[i:i+10]),
                 )
+                # 小延迟，让浏览器有时间渲染
+                await asyncio.sleep(0.01)
 
             # 发送完成事件
             yield StreamEvent(
                 event="done",
-                data='{"confidence": %f, "model_used": "%s", "tokens_used": %d}' % (
-                    result.confidence,
-                    result.model_used,
-                    result.tokens_used,
-                ),
+                data=json.dumps({
+                    "confidence": result.confidence,
+                    "model_used": result.model_used,
+                    "tokens_used": result.tokens_used,
+                }),
             )
 
         except Exception as e:
+            logger.error("stream_failed", session_id=session_id, error=str(e))
             yield StreamEvent(
                 event="error",
-                data=f'"{str(e)}"',
+                data=json.dumps({"error": str(e)}),
             )
 
     async def get_history(
-        self, session_id: str, limit: int = 50
+        self, session_id: str, user_id: str | None = None, limit: int = 50
     ) -> ConversationHistory:
         """
         获取对话历史
 
         Args:
             session_id: 会话 ID
+            user_id: 用户 ID (用于隔离)
             limit: 最大消息数
 
         Returns:
             ConversationHistory: 对话历史
         """
-        messages = await self.memory.short_term.get_messages(session_id, last_n=limit)
+        messages = await self.memory.short_term.get_messages(session_id, user_id=user_id, last_n=limit)
 
         return ConversationHistory(
             session_id=session_id,
@@ -314,45 +331,152 @@ class ConversationOrchestrator:
         )
 
     async def list_sessions(
-        self, page: int = 1, page_size: int = 20
+        self, user_id: str, page: int = 1, page_size: int = 20
     ) -> list[SessionInfo]:
         """
         获取会话列表
 
-        Phase 1: 桩实现，返回空列表
-        后续从 PostgreSQL 查询
-
         Args:
+            user_id: 用户 ID (必须，用于隔离)
             page: 页码
             page_size: 每页数量
 
         Returns:
-            list[SessionInfo]: 会话列表
+            list[SessionInfo]: 会话列表 (仅当前用户的会话)
         """
-        # TODO: 从 PostgreSQL 查询会话列表
-        return []
+        try:
+            pool = self.pg_pool
+            offset = (page - 1) * page_size
 
-    async def delete_session(self, session_id: str) -> None:
+            rows = await pool.fetch(
+                """
+                SELECT session_id, user_id, title, message_count, status, created_at, updated_at
+                FROM chat_sessions
+                WHERE user_id = $1
+                ORDER BY updated_at DESC
+                LIMIT $2 OFFSET $3
+                """,
+                user_id,
+                page_size,
+                offset,
+            )
+
+            return [
+                SessionInfo(
+                    session_id=row["session_id"],
+                    user_id=row["user_id"],
+                    title=row["title"] or "新对话",
+                    message_count=row["message_count"],
+                    status=row["status"],
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                )
+                for row in rows
+            ]
+        except Exception as e:
+            logger.error("list_sessions_failed", user_id=user_id, error=str(e))
+            return []
+
+    async def delete_session(self, session_id: str, user_id: str) -> None:
         """
         删除会话
 
+        校验 session 是否属于当前用户，防止跨用户删除。
+
         Args:
             session_id: 会话 ID
+            user_id: 用户 ID (用于校验)
         """
-        await self.memory.clear_session(session_id)
-        logger.info("session_deleted", session_id=session_id)
+        # 校验 session_id 是否属于该用户
+        if not session_id.startswith(f"{user_id}_"):
+            logger.warning(
+                "session_delete_forbidden",
+                user_id=user_id,
+                session_id=session_id,
+            )
+            from src.api.middlewares.error_handler import AppError
+            raise AppError(
+                message="Cannot delete session belonging to another user",
+                status_code=403,
+                error_code="FORBIDDEN",
+            )
 
-    def _state_to_result(self, state: ConversationState) -> OrchestratorResult:
+        await self.memory.clear_session(session_id, user_id=user_id)
+
+        # 删除 PostgreSQL 中的会话记录
+        try:
+            await self.pg_pool.execute(
+                "DELETE FROM chat_sessions WHERE session_id = $1",
+                session_id,
+            )
+        except Exception as e:
+            logger.error("delete_session_from_db_failed", session_id=session_id, error=str(e))
+
+        logger.info("session_deleted", user_id=user_id, session_id=session_id)
+
+    async def _upsert_session(
+        self,
+        session_id: str,
+        user_id: str | None,
+        title: str | None = None,
+    ) -> None:
+        """创建或更新会话记录
+
+        Args:
+            session_id: 会话 ID
+            user_id: 用户 ID
+            title: 会话标题
+        """
+        if not user_id:
+            return
+
+        try:
+            # 检查会话是否存在
+            exists = await self.pg_pool.fetchval(
+                "SELECT 1 FROM chat_sessions WHERE session_id = $1",
+                session_id,
+            )
+
+            if exists:
+                # 更新已有会话
+                await self.pg_pool.execute(
+                    """
+                    UPDATE chat_sessions
+                    SET message_count = message_count + 2,
+                        updated_at = NOW()
+                    WHERE session_id = $1
+                    """,
+                    session_id,
+                )
+            else:
+                # 创建新会话
+                await self.pg_pool.execute(
+                    """
+                    INSERT INTO chat_sessions (session_id, user_id, title, message_count, status)
+                    VALUES ($1, $2, $3, 2, 'active')
+                    """,
+                    session_id,
+                    user_id,
+                    title or "新对话",
+                )
+        except Exception as e:
+            logger.error("upsert_session_failed", session_id=session_id, error=str(e))
+
+    def _state_to_result(self, state: ConversationState | dict) -> OrchestratorResult:
         """将 ConversationState 转换为 OrchestratorResult
 
         用于处理图直接返回 ConversationState 的情况（如缓存命中）。
 
         Args:
-            state: 对话状态
+            state: 对话状态 (可能是 ConversationState 对象或字典)
 
         Returns:
             OrchestratorResult: 编排结果
         """
+        # 如果是字典，转换为 ConversationState 对象
+        if isinstance(state, dict):
+            state = ConversationState(**state)
+
         # 根据路由决策选择回答
         if state.route == "reject":
             answer = "抱歉，我无法找到与您问题相关的信息，建议您查阅相关文档或联系管理员。"
@@ -399,9 +523,13 @@ async def init_orchestrator(
         settings=settings,
     )
 
-    # 创建 Dense 检索器 (内部使用 OpenAI 兼容接口)
+    # 创建 Embedding Provider
+    embedding_provider = create_embedding_provider(settings)
+
+    # 创建 Dense 检索器 (使用 provider)
     dense_retriever = DenseRetriever(
         milvus_client=milvus_client,
+        embedding_provider=embedding_provider,
         settings=settings,
     )
 
@@ -412,16 +540,10 @@ async def init_orchestrator(
     synthesizer = AnswerSynthesizer(settings=settings)
 
     # === 创建缓存节点 (Phase 2) ===
-    # 创建 Embedding 函数
+    # 创建 Embedding 函数 (使用 provider)
     async def get_embedding(text: str) -> list[float]:
         """获取文本 Embedding 向量"""
-        from langchain_openai import OpenAIEmbeddings
-        embeddings = OpenAIEmbeddings(
-            model=settings.EMBEDDING_MODEL,
-            api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
-            base_url=settings.DASHSCOPE_BASE_URL,
-        )
-        return await embeddings.aembed_query(text)
+        return await embedding_provider.embed_one(text)
 
     # 创建语义缓存
     semantic_cache = SemanticCache(
@@ -429,7 +551,7 @@ async def init_orchestrator(
         embedding_fn=get_embedding,
         similarity_threshold=settings.SEMANTIC_CACHE_THRESHOLD,
         ttl=settings.SEMANTIC_CACHE_TTL,
-        embedding_dim=settings.EMBEDDING_DIMENSION,
+        embedding_dim=embedding_provider.dimension,
     )
 
     # 创建缓存管理器

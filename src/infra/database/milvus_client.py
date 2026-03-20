@@ -36,12 +36,31 @@ def _ensure_collection(client: _MilvusClient, settings) -> None:
     Args:
         client: Milvus 客户端实例
         settings: 应用配置
+
+    Note:
+        当检测到向量维度与现有 collection 不匹配时：
+        - 如果是新部署，可以删除旧 collection 重建
+        - 如果有重要数据，应该先导出再切换配置
+        当前策略：直接重建（可能丢失数据），后续可扩展为迁移逻辑
     """
     collection_name = settings.MILVUS_COLLECTION_NAME
 
-    # 如果 Collection 已存在，直接返回
+    # 如果 Collection 存在，检查维度是否匹配，不匹配则删除重建
     if client.has_collection(collection_name):
-        return
+        coll_info = client.describe_collection(collection_name=collection_name)
+        fields = {f["name"]: f for f in coll_info.get("fields", [])}
+        emb_field = fields.get("embedding", {})
+        # Milvus 返回的维度在 params.dim 里，不是顶层 dimension 字段
+        existing_dim = emb_field.get("params", {}).get("dim", 0)
+        expected_dim = settings.ACTIVE_EMBEDDING_DIMENSION
+
+        if existing_dim != expected_dim:
+            # 维度不匹配：删除旧 collection
+            # 注意：这会丢失所有已导入的向量数据！
+            # 切换 embedding provider 时必须重新导入文档
+            client.drop_collection(collection_name=collection_name)
+        else:
+            return  # 维度匹配，保留现有 collection
 
     # 定义 Collection Schema
     schema = CollectionSchema(
@@ -50,7 +69,7 @@ def _ensure_collection(client: _MilvusClient, settings) -> None:
             FieldSchema("doc_id", DataType.VARCHAR, max_length=64),  # 文档 ID
             FieldSchema("chunk_index", DataType.INT64),  # 块索引
             FieldSchema("content", DataType.VARCHAR, max_length=65535),  # 文档内容
-            FieldSchema("embedding", DataType.FLOAT_VECTOR, dim=settings.EMBEDDING_DIMENSION),  # 向量
+            FieldSchema("embedding", DataType.FLOAT_VECTOR, dim=settings.ACTIVE_EMBEDDING_DIMENSION),  # 向量
             FieldSchema("doc_title", DataType.VARCHAR, max_length=512),  # 文档标题
             FieldSchema("collection", DataType.VARCHAR, max_length=128),  # 集合名称
             FieldSchema("created_at", DataType.INT64),  # 创建时间戳
@@ -63,9 +82,6 @@ def _ensure_collection(client: _MilvusClient, settings) -> None:
         collection_name=collection_name,
         schema=schema,
     )
-
-    # 加载 Collection 到内存 (Upsert 后必须 load 才能被查询)
-    client.load_collection(collection_name=collection_name)
 
     # 配置向量索引 (HNSW)
     index_params = client.prepare_index_params()
@@ -85,6 +101,9 @@ def _ensure_collection(client: _MilvusClient, settings) -> None:
         collection_name=collection_name,
         index_params=index_params,
     )
+
+    # 加载 Collection 到内存 (必须在 create_index 之后)
+    client.load_collection(collection_name=collection_name)
 
 
 def get_milvus() -> _MilvusClient:

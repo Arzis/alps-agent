@@ -54,13 +54,13 @@ class HallucinationDetector:
         """初始化幻觉检测器
 
         Args:
-            llm: 可选的 LLM 实例，默认使用 gpt-4o-mini
+            llm: 可选的 LLM 实例，默认使用 FALLBACK_LLM_MODEL
         """
         settings = get_settings()
         if llm is None:
             from langchain_openai import ChatOpenAI
             self.llm = ChatOpenAI(
-                model="gpt-4o-mini",
+                model=settings.FALLBACK_LLM_MODEL,
                 temperature=0.0,
                 api_key=settings.DASHSCOPE_API_KEY.get_secret_value(),
                 base_url=settings.DASHSCOPE_BASE_URL,

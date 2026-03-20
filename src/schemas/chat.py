@@ -108,6 +108,7 @@ class SessionInfo(BaseModel):
     表示一个对话会话的基本信息。
     """
     session_id: str                    # 会话 ID
+    user_id: str                       # 用户 ID (用于隔离)
     title: str | None = None          # 会话标题
     message_count: int = 0            # 消息数量
     status: str = "active"            # 会话状态: active / completed / archived
